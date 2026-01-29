@@ -14,6 +14,7 @@ public class NativeDefinition
     public string ApiSet { get; set; } = "client";
     public List<string> UsedEnums { get; set; } = new();
     public List<string> RelatedExamples { get; set; } = new();
+    public List<Callout> Callouts { get; set; } = new();
     public string? SourceFile { get; set; }
 }
 

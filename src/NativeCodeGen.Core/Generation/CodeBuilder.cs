@@ -9,11 +9,15 @@ public class CodeBuilder
 {
     private readonly StringBuilder _sb = new();
     private readonly string _indentChar;
+    private readonly string[] _cachedIndents;
     private int _indentLevel;
 
     public CodeBuilder(string indentChar = "  ")
     {
         _indentChar = indentChar;
+        _cachedIndents = Enumerable.Range(0, 16)
+            .Select(i => string.Concat(Enumerable.Repeat(indentChar, i)))
+            .ToArray();
     }
 
     public CodeBuilder Indent()
@@ -87,7 +91,9 @@ public class CodeBuilder
         return this;
     }
 
-    private string GetIndent() => string.Concat(Enumerable.Repeat(_indentChar, _indentLevel));
+    private string GetIndent() => _indentLevel < _cachedIndents.Length
+        ? _cachedIndents[_indentLevel]
+        : string.Concat(Enumerable.Repeat(_indentChar, _indentLevel));
 
     public override string ToString() => _sb.ToString();
 

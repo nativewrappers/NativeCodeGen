@@ -77,6 +77,10 @@ public partial class ExportNative
     [ProtoMember(11)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public List<string>? RelatedExamples { get; set; }
+
+    [ProtoMember(12)]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<ExportCallout>? Callouts { get; set; }
 }
 
 [ProtoContract]
@@ -205,4 +209,19 @@ public partial class ExportSharedExampleCode
 
     [ProtoMember(2)]
     public string? Language { get; set; }
+}
+
+[ProtoContract]
+public partial class ExportCallout
+{
+    [ProtoMember(1)]
+    [JsonConverter(typeof(JsonStringEnumConverter<CalloutType>))]
+    public CalloutType Type { get; set; }
+
+    [ProtoMember(2)]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Title { get; set; }
+
+    [ProtoMember(3)]
+    public string Description { get; set; } = string.Empty;
 }

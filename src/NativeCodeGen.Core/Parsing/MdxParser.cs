@@ -224,6 +224,9 @@ public class MdxParser
                 native.RelatedExamples.Add(exampleRef.Name);
         }
 
+        // Scan for callouts (notes, warnings, etc.)
+        native.Callouts = _componentParser.ParseCallouts(markdownContent);
+
         // Apply parameter descriptions (cleaned)
         foreach (var param in native.Parameters)
         {

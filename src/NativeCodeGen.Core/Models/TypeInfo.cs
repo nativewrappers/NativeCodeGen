@@ -72,7 +72,7 @@ public class TypeInfo
         return TypeCategory.Struct;
     }
 
-    private static bool IsPrimitive(string name) => name switch
+    public static bool IsPrimitive(string name) => name switch
     {
         "int" or "uint" or "float" or "double" or "BOOL" or "bool" => true,
         "u8" or "u16" or "u32" or "u64" => true,
@@ -81,7 +81,7 @@ public class TypeInfo
         _ => false
     };
 
-    private static bool IsHandle(string name) => name switch
+    public static bool IsHandle(string name) => name switch
     {
         "Entity" or "Ped" or "Vehicle" or "Object" or "Pickup" => true,
         "Player" or "Cam" or "Blip" or "Interior" or "FireId" => true,

@@ -1,3 +1,4 @@
+using NativeCodeGen.Core.Models;
 using NativeCodeGen.Core.Parsing;
 
 namespace NativeCodeGen.Tests.Parsing;
@@ -106,5 +107,87 @@ public class MdxComponentParserTests
         Assert.Equal(2, results.Count);
         Assert.Contains(results, r => r.Name == "REQUEST_MODEL");
         Assert.Contains(results, r => r.Name == "CREATE_PED");
+    }
+
+    [Fact]
+    public void ParseCallouts_NoteWithoutTitle()
+    {
+        var content = "[note: This is a simple note]";
+        var results = _parser.ParseCallouts(content);
+
+        Assert.Single(results);
+        Assert.Equal(CalloutType.Note, results[0].Type);
+        Assert.Null(results[0].Title);
+        Assert.Equal("This is a simple note", results[0].Description);
+    }
+
+    [Fact]
+    public void ParseCallouts_NoteWithTitle()
+    {
+        var content = "[note: Important | This is the description]";
+        var results = _parser.ParseCallouts(content);
+
+        Assert.Single(results);
+        Assert.Equal(CalloutType.Note, results[0].Type);
+        Assert.Equal("Important", results[0].Title);
+        Assert.Equal("This is the description", results[0].Description);
+    }
+
+    [Fact]
+    public void ParseCallouts_Warning()
+    {
+        var content = "[warning: Deprecated | This function will be removed]";
+        var results = _parser.ParseCallouts(content);
+
+        Assert.Single(results);
+        Assert.Equal(CalloutType.Warning, results[0].Type);
+        Assert.Equal("Deprecated", results[0].Title);
+        Assert.Equal("This function will be removed", results[0].Description);
+    }
+
+    [Fact]
+    public void ParseCallouts_Info()
+    {
+        var content = "[info: Performance | This function is expensive]";
+        var results = _parser.ParseCallouts(content);
+
+        Assert.Single(results);
+        Assert.Equal(CalloutType.Info, results[0].Type);
+        Assert.Equal("Performance", results[0].Title);
+        Assert.Equal("This function is expensive", results[0].Description);
+    }
+
+    [Fact]
+    public void ParseCallouts_Danger()
+    {
+        var content = "[danger: Do not call in production]";
+        var results = _parser.ParseCallouts(content);
+
+        Assert.Single(results);
+        Assert.Equal(CalloutType.Danger, results[0].Type);
+        Assert.Null(results[0].Title);
+        Assert.Equal("Do not call in production", results[0].Description);
+    }
+
+    [Fact]
+    public void ParseCallouts_Multiple()
+    {
+        var content = "Some text [note: A note] more text [warning: A warning]";
+        var results = _parser.ParseCallouts(content);
+
+        Assert.Equal(2, results.Count);
+        Assert.Contains(results, r => r.Type == CalloutType.Note && r.Description == "A note");
+        Assert.Contains(results, r => r.Type == CalloutType.Warning && r.Description == "A warning");
+    }
+
+    [Fact]
+    public void ParseCallouts_CaseInsensitive()
+    {
+        var content = "[NOTE: Important message] [WARNING: Be careful]";
+        var results = _parser.ParseCallouts(content);
+
+        Assert.Equal(2, results.Count);
+        Assert.Contains(results, r => r.Type == CalloutType.Note);
+        Assert.Contains(results, r => r.Type == CalloutType.Warning);
     }
 }

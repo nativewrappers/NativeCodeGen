@@ -45,11 +45,11 @@ public class RawNativeBuilder
             var prefix = singleFile ? "./" : "../";
             _cb.AppendLine($"import {{ Vector3 }} from '{prefix}types/Vector3';");
             _cb.AppendLine();
-            EmitTypeScriptAliases();
+            EmitTypeScriptAliases(_cb);
         }
         else
         {
-            EmitLuaAliases();
+            EmitLuaAliases(_cb);
         }
     }
 
@@ -75,8 +75,6 @@ public class RawNativeBuilder
         cb.AppendLine();
     }
 
-    private void EmitTypeScriptAliases() => EmitTypeScriptAliases(_cb);
-
     /// <summary>
     /// Emits Lua aliases. Static so it can be used by other emitters.
     /// </summary>
@@ -96,8 +94,6 @@ public class RawNativeBuilder
         cb.AppendLine($"local {cfg.HashWrapperAlias} = function(v) return (type(v) == 'string' and GetHashKey(v) or v) & 0xFFFFFFFF end");
         cb.AppendLine();
     }
-
-    private void EmitLuaAliases() => EmitLuaAliases(_cb);
 
     public void EmitModuleHeader(string moduleName)
     {
@@ -294,16 +290,10 @@ public class RawNativeBuilder
         else
             args.Add(native.Hash);
 
-        // Input params - use ArgumentBuilder shared logic
-        foreach (var p in native.Parameters.Where(p => !p.IsPureOutput))
+        // All params - ArgumentBuilder handles input, output, and in-out pointers
+        foreach (var p in native.Parameters)
         {
-            args.Add(GetArgumentExpression(p));
-        }
-
-        // Output param pointers - use the type mapper
-        foreach (var p in outputParams)
-        {
-            args.Add(_typeMapper.GetPointerPlaceholder(p.Type));
+            args.Add(ArgumentBuilder.GetArgumentExpression(p, _typeMapper, _config, rawMode: true));
         }
 
         // Result marker - use the type mapper
@@ -339,45 +329,6 @@ public class RawNativeBuilder
         else
         {
             _cb.AppendLine($"{_config.InvokeAlias}({string.Join(", ", args)});");
-        }
-    }
-
-    /// <summary>
-    /// Gets the argument expression for a parameter.
-    /// Handles float wrapping, hash wrapping, Vector3 expansion.
-    /// </summary>
-    private string GetArgumentExpression(NativeParameter p)
-    {
-        var f = _config.FloatWrapperAlias;
-        var h = _config.HashWrapperAlias;
-        var useFloat = _config.UseFloatWrapper;
-        var useHash = _config.UseHashWrapper;
-
-        if (p.Type.Category == TypeCategory.Vector3)
-        {
-            // Vector3 components are floats - wrap if language needs it
-            if (useFloat)
-                return $"{f}({p.Name}.x), {f}({p.Name}.y), {f}({p.Name}.z)";
-            else
-                return $"{p.Name}.x, {p.Name}.y, {p.Name}.z";
-        }
-        else if (p.Type.Category == TypeCategory.Hash || p.Type.Name == "Hash")
-        {
-            if (useHash)
-                return $"{h}({p.Name})";
-            else
-                return p.Name;
-        }
-        else if (p.Type.Name is "float" or "f32" or "f64" or "double")
-        {
-            if (useFloat)
-                return $"{f}({p.Name})";
-            else
-                return p.Name;
-        }
-        else
-        {
-            return p.Name;
         }
     }
 

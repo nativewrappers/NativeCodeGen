@@ -10,7 +10,6 @@ namespace NativeCodeGen.Core.Generation;
 public class SharedClassGenerator
 {
     private readonly ILanguageEmitter _emitter;
-    private static readonly HashSet<string> EntitySubclasses = new() { "Ped", "Vehicle", "Object", "Prop" };
 
     public SharedClassGenerator(ILanguageEmitter emitter)
     {
@@ -306,7 +305,7 @@ public class SharedClassGenerator
         if (typeName == "Object" && className == "Prop")
             return true;
 
-        if (typeName == "Entity" && EntitySubclasses.Contains(className))
+        if (typeName == "Entity" && NativeClassifier.EntitySubclasses.Contains(className))
             return true;
 
         return false;

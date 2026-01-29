@@ -45,6 +45,7 @@ message Native {
   repeated string used_enums = 9;
   string apiset = 10;
   repeated string related_examples = 11;
+  repeated Callout callouts = 12;
 }
 
 message Parameter {
@@ -98,4 +99,17 @@ message SharedExample {
 message SharedExampleCode {
   string content = 1;
   optional string language = 2;
+}
+
+enum CalloutType {
+  NOTE = 0;
+  WARNING = 1;
+  INFO = 2;
+  DANGER = 3;
+}
+
+message Callout {
+  CalloutType type = 1;
+  optional string title = 2;
+  string description = 3;
 }

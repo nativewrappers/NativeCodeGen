@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using NativeCodeGen.Core.Models;
 
 namespace NativeCodeGen.Core.Parsing;
 
@@ -36,6 +37,19 @@ public partial class MdxComponentParser
 
     [GeneratedRegex(@"\[native:\s*[""']?([\w]+)[""']?\]", RegexOptions.IgnoreCase)]
     private static partial Regex NativeAttributeRegex();
+
+    // Callout patterns: [note: Description] or [note: Title | Description]
+    [GeneratedRegex(@"\[note:\s*(.+?)\]", RegexOptions.IgnoreCase | RegexOptions.Singleline)]
+    private static partial Regex NoteAttributeRegex();
+
+    [GeneratedRegex(@"\[warning:\s*(.+?)\]", RegexOptions.IgnoreCase | RegexOptions.Singleline)]
+    private static partial Regex WarningAttributeRegex();
+
+    [GeneratedRegex(@"\[info:\s*(.+?)\]", RegexOptions.IgnoreCase | RegexOptions.Singleline)]
+    private static partial Regex InfoAttributeRegex();
+
+    [GeneratedRegex(@"\[danger:\s*(.+?)\]", RegexOptions.IgnoreCase | RegexOptions.Singleline)]
+    private static partial Regex DangerAttributeRegex();
 
     /// <summary>
     /// Normalizes description text by cleaning up whitespace.
@@ -105,5 +119,45 @@ public partial class MdxComponentParser
         }
 
         return results;
+    }
+
+    public List<Callout> ParseCallouts(string content)
+    {
+        var results = new List<Callout>();
+
+        ParseCalloutType(content, NoteAttributeRegex(), CalloutType.Note, results);
+        ParseCalloutType(content, WarningAttributeRegex(), CalloutType.Warning, results);
+        ParseCalloutType(content, InfoAttributeRegex(), CalloutType.Info, results);
+        ParseCalloutType(content, DangerAttributeRegex(), CalloutType.Danger, results);
+
+        return results;
+    }
+
+    private static void ParseCalloutType(string content, Regex regex, CalloutType type, List<Callout> results)
+    {
+        foreach (Match match in regex.Matches(content))
+        {
+            var value = match.Groups[1].Value.Trim();
+            var pipeIndex = value.IndexOf('|');
+
+            if (pipeIndex >= 0)
+            {
+                results.Add(new Callout
+                {
+                    Type = type,
+                    Title = value[..pipeIndex].Trim(),
+                    Description = value[(pipeIndex + 1)..].Trim()
+                });
+            }
+            else
+            {
+                results.Add(new Callout
+                {
+                    Type = type,
+                    Title = null,
+                    Description = value
+                });
+            }
+        }
     }
 }

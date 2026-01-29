@@ -1,3 +1,4 @@
+using static NativeCodeGen.Core.Models.TypeInfo;
 using NativeCodeGen.Core.Models;
 
 namespace NativeCodeGen.Core.Parsing;
@@ -322,24 +323,6 @@ public class SignatureParser
 
         return TypeCategory.Struct;
     }
-
-    private static bool IsPrimitive(string name) => name switch
-    {
-        "int" or "uint" or "float" or "double" or "BOOL" or "bool" => true,
-        "u8" or "u16" or "u32" or "u64" => true,
-        "i8" or "i16" or "i32" or "i64" => true,
-        "f32" or "f64" => true,
-        _ => false
-    };
-
-    private static bool IsHandle(string name) => name switch
-    {
-        "Entity" or "Ped" or "Vehicle" or "Object" or "Pickup" => true,
-        "Player" or "Cam" or "Blip" or "Interior" or "FireId" => true,
-        "AnimScene" or "ItemSet" or "PersChar" or "PopZone" => true,
-        "PropSet" or "Volume" or "ScrHandle" or "PedGroup" => true,
-        _ => false
-    };
 }
 
 public class ParseException : Exception

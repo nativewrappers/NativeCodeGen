@@ -21,5 +21,8 @@
     <type fullname="NativeCodeGen.Core.Export.ExportSharedExample" preserve="all" />
     <type fullname="NativeCodeGen.Core.Export.ExportSharedExampleCode" preserve="all" />
     <type fullname="NativeCodeGen.Core.Registry.SharedExampleFrontmatter" preserve="all" />
+    <type fullname="NativeCodeGen.Core.Parsing.Frontmatter" preserve="all" />
+    <type fullname="NativeCodeGen.Core.Export.ExportCallout" preserve="all" />
+    <type fullname="NativeCodeGen.Core.Models.CalloutType" preserve="all" />
   </assembly>
 </linker>

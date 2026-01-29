@@ -98,8 +98,19 @@ public static class DatabaseConverter
             ReturnDescription = native.ReturnDescription,
             Aliases = native.Aliases.Count > 0 ? native.Aliases : null,
             RelatedExamples = native.RelatedExamples.Count > 0 ? native.RelatedExamples : null,
+            Callouts = native.Callouts.Count > 0 ? native.Callouts.Select(ConvertCallout).ToList() : null,
             ApiSet = native.ApiSet,
             Parameters = native.Parameters.Select(ConvertParameter).ToList()
+        };
+    }
+
+    private static ExportCallout ConvertCallout(Callout callout)
+    {
+        return new ExportCallout
+        {
+            Type = callout.Type,
+            Title = callout.Title,
+            Description = callout.Description
         };
     }
 
