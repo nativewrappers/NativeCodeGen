@@ -4,6 +4,8 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <!-- Suppress protobuf-net informational warnings about default values -->
+    <NoWarn>$(NoWarn);PBN0020;PBN0022</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
