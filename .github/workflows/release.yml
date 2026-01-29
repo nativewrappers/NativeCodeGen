@@ -17,6 +17,9 @@ jobs:
           - os: ubuntu-latest
             rid: linux-x64
             artifact: nativegen-linux-x64
+          - os: ubuntu-latest
+            rid: linux-musl-x64
+            artifact: nativegen-linux-musl-x64
           - os: windows-latest
             rid: win-x64
             artifact: nativegen-win-x64.exe

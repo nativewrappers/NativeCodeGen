@@ -137,7 +137,7 @@ void SET_PED_HEALTH(@this Ped ped, int health);
         var result = _parser.Parse(mdx, "test.mdx");
 
         Assert.True(result.IsSuccess, string.Join("; ", result.Errors.Select(e => e.Message)));
-        Assert.True(result.Value!.Parameters[0].Attributes.IsThis);
+        Assert.True(result.Value!.Parameters[0].IsThis);
     }
 
     [Fact]
@@ -160,7 +160,7 @@ Hash GET_HASH_KEY(@notnull char* str);
         var result = _parser.Parse(mdx, "test.mdx");
 
         Assert.True(result.IsSuccess, string.Join("; ", result.Errors.Select(e => e.Message)));
-        Assert.True(result.Value!.Parameters[0].Attributes.IsNotNull);
+        Assert.True(result.Value!.Parameters[0].IsNotNull);
     }
 
     [Fact]
@@ -358,10 +358,10 @@ BOOL COMPLEX_NATIVE(@this Ped ped, @notnull char* name, int* outValue, float spe
         Assert.True(result.IsSuccess, string.Join("; ", result.Errors.Select(e => e.Message)));
         Assert.Equal(4, result.Value!.Parameters.Count);
 
-        Assert.True(result.Value.Parameters[0].Attributes.IsThis);
+        Assert.True(result.Value.Parameters[0].IsThis);
         Assert.Equal("Ped", result.Value.Parameters[0].Type.Name);
 
-        Assert.True(result.Value.Parameters[1].Attributes.IsNotNull);
+        Assert.True(result.Value.Parameters[1].IsNotNull);
 
         Assert.True(result.Value.Parameters[2].IsOutput);
 
@@ -880,7 +880,7 @@ void DELETE_ENTITY(@in Entity* entity);
         var result = _parser.Parse(mdx, "test.mdx");
 
         Assert.True(result.IsSuccess, string.Join("; ", result.Errors.Select(e => e.Message)));
-        Assert.True(result.Value!.Parameters[0].Attributes.IsIn);
+        Assert.True(result.Value!.Parameters[0].IsIn);
     }
 
     [Fact]
@@ -905,6 +905,6 @@ void TEST_NATIVE(@in Vector3* coords);
         var result = _parser.Parse(mdx, "test.mdx");
 
         Assert.True(result.IsSuccess, string.Join("; ", result.Errors.Select(e => e.Message)));
-        Assert.True(result.Value!.Parameters[0].Attributes.IsIn);
+        Assert.True(result.Value!.Parameters[0].IsIn);
     }
 }

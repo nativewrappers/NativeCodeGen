@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using NativeCodeGen.Core.Models;
 
 namespace NativeCodeGen.Core.Export;
 
@@ -30,6 +31,11 @@ namespace NativeCodeGen.Core.Export;
 [JsonSerializable(typeof(Dictionary<string, ExportEnum>))]
 [JsonSerializable(typeof(Dictionary<string, ExportStruct>))]
 [JsonSerializable(typeof(Dictionary<string, ExportSharedExample>))]
+[JsonSerializable(typeof(Dictionary<string, ExportTypeInfo>))]
+[JsonSerializable(typeof(ExportTypeInfo))]
+[JsonSerializable(typeof(ExportTypeCategory))]
+[JsonSerializable(typeof(ExportTypeEntry))]
+[JsonSerializable(typeof(List<ExportTypeEntry>))]
 public partial class ExportJsonContext : JsonSerializerContext
 {
 }

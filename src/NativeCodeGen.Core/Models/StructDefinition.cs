@@ -26,14 +26,9 @@ public class StructField
     public string? Comment { get; set; }
 
     /// <summary>
-    /// Field is an input (setter only) - marked with @in
+    /// Field attribute flags (@in, @out, @padding).
     /// </summary>
-    public bool IsInput { get; set; } = true;
-
-    /// <summary>
-    /// Field is an output (getter only) - marked with @out
-    /// </summary>
-    public bool IsOutput { get; set; } = true;
+    public FieldFlags Flags { get; set; } = FieldFlags.None;
 
     /// <summary>
     /// Array size if this is an array field (0 = not an array)
@@ -56,15 +51,15 @@ public class StructField
     public string? NestedStructName { get; set; }
 
     /// <summary>
-    /// True if this is a padding field - marked with @padding.
-    /// Padding fields use actual byte sizes and don't generate accessors.
-    /// </summary>
-    public bool IsPadding { get; set; } = false;
-
-    /// <summary>
     /// Custom alignment for this field (in bytes).
     /// Set via @alignas(N) before the field type.
     /// If null, uses the struct's DefaultAlignment.
     /// </summary>
     public int? Alignment { get; set; }
+
+    // Convenience accessors for common flag checks
+    public bool IsInput => Flags.HasSetter();
+    public bool IsOutput => Flags.HasGetter();
+    public bool IsPadding => Flags.HasFlag(FieldFlags.Padding);
+    public bool HasFullAccess => Flags.HasFullAccess();
 }

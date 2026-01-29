@@ -136,14 +136,14 @@ public class SharedClassGenerator
         if (isInstance && parameters.Count > 0)
         {
             var firstParam = parameters[0];
-            if (IsHandleMatch(firstParam.Type, className) || firstParam.Attributes.IsThis)
+            if (IsHandleMatch(firstParam.Type, className) || firstParam.IsThis)
             {
                 parameters = parameters.Skip(1).ToList();
             }
         }
 
-        var inputParams = parameters.Where(p => !p.IsOutput).ToList();
-        var outputParams = parameters.Where(p => p.IsOutput).ToList();
+        var inputParams = parameters.Where(p => !p.IsPureOutput).ToList();
+        var outputParams = parameters.Where(p => p.IsPureOutput).ToList();
         var outputParamTypes = outputParams.Select(p => p.Type).ToList();
 
         // Generate doc
@@ -152,7 +152,7 @@ public class SharedClassGenerator
         // Build method parameters
         var methodParams = inputParams.Select(p => new MethodParameter(
             p.Name,
-            _emitter.TypeMapper.MapType(p.Type, p.Attributes.IsNotNull),
+            _emitter.TypeMapper.MapType(p.Type, p.IsNotNull),
             p.HasDefaultValue
         )).ToList();
 
@@ -180,15 +180,15 @@ public class SharedClassGenerator
         var methodName = NameDeduplicator.DeduplicateForNamespace(native.Name, namespaceForDedup, NamingConvention.CamelCase);
 
         var parameters = native.Parameters.Skip(1).ToList();
-        var inputParams = parameters.Where(p => !p.IsOutput).ToList();
-        var outputParams = parameters.Where(p => p.IsOutput).ToList();
+        var inputParams = parameters.Where(p => !p.IsPureOutput).ToList();
+        var outputParams = parameters.Where(p => p.IsPureOutput).ToList();
         var outputParamTypes = outputParams.Select(p => p.Type).ToList();
 
         GenerateMethodDoc(cb, native, inputParams, outputParams);
 
         var methodParams = inputParams.Select(p => new MethodParameter(
             p.Name,
-            _emitter.TypeMapper.MapType(p.Type, p.Attributes.IsNotNull),
+            _emitter.TypeMapper.MapType(p.Type, p.IsNotNull),
             p.HasDefaultValue
         )).ToList();
 
@@ -210,15 +210,15 @@ public class SharedClassGenerator
     {
         var methodName = NameDeduplicator.DeduplicateForNamespace(native.Name, namespaceName, NamingConvention.CamelCase);
 
-        var inputParams = native.Parameters.Where(p => !p.IsOutput).ToList();
-        var outputParams = native.Parameters.Where(p => p.IsOutput).ToList();
+        var inputParams = native.Parameters.Where(p => !p.IsPureOutput).ToList();
+        var outputParams = native.Parameters.Where(p => p.IsPureOutput).ToList();
         var outputParamTypes = outputParams.Select(p => p.Type).ToList();
 
         GenerateMethodDoc(cb, native, inputParams, outputParams);
 
         var methodParams = inputParams.Select(p => new MethodParameter(
             p.Name,
-            _emitter.TypeMapper.MapType(p.Type, p.Attributes.IsNotNull),
+            _emitter.TypeMapper.MapType(p.Type, p.IsNotNull),
             p.HasDefaultValue
         )).ToList();
 
@@ -243,7 +243,7 @@ public class SharedClassGenerator
 
         foreach (var param in inputParams)
         {
-            var type = _emitter.TypeMapper.MapType(param.Type, param.Attributes.IsNotNull);
+            var type = _emitter.TypeMapper.MapType(param.Type, param.IsNotNull);
             doc.AddParam(param.Name, type, param.Description);
         }
 
@@ -287,7 +287,7 @@ public class SharedClassGenerator
 
         var firstParam = native.Parameters[0];
 
-        if (firstParam.Attributes.IsThis)
+        if (firstParam.IsThis)
             return true;
 
         return IsHandleMatch(firstParam.Type, className);

@@ -92,7 +92,7 @@ public class NativeClassifier
 
         var firstParam = native.Parameters[0];
 
-        if (firstParam.Attributes.IsThis && firstParam.Type.Category == TypeCategory.Handle)
+        if (firstParam.IsThis && firstParam.Type.Category == TypeCategory.Handle)
         {
             var typeName = firstParam.Type.Name;
             return typeName == "Object" ? "Prop" : typeName;

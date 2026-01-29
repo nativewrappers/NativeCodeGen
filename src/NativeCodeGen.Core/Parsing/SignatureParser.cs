@@ -57,7 +57,7 @@ public class SignatureParser
         Expect(TokenType.RParen, "Expected ')'");
 
         // Validate: only one @this attribute allowed
-        var thisParams = parameters.Where(p => p.Attributes.IsThis).ToList();
+        var thisParams = parameters.Where(p => p.IsThis).ToList();
         if (thisParams.Count > 1)
         {
             throw new ParseException(
@@ -68,7 +68,7 @@ public class SignatureParser
         }
 
         // Validate: @in can only be applied to pointer types (not structs)
-        foreach (var param in parameters.Where(p => p.Attributes.IsIn))
+        foreach (var param in parameters.Where(p => p.IsIn))
         {
             if (!param.Type.IsPointer)
             {
@@ -98,7 +98,8 @@ public class SignatureParser
 
     private TypeInfo ParseType()
     {
-        var attributes = ParseAttributes();
+        // Consume any attributes before return type (they're ignored for return types)
+        ParseAttributeFlags();
 
         var typeToken = Expect(TokenType.Identifier, "Expected type name");
         var typeName = typeToken.Value;
@@ -141,8 +142,8 @@ public class SignatureParser
 
     private NativeParameter ParseParameter()
     {
-        var attributes = ParseAttributes();
-        var type = ParseTypeWithAttributes(attributes);
+        var flags = ParseAttributeFlags();
+        var type = ParseTypeInfo();
 
         // Handle variadic parameters: ...args or just ...
         var isVariadic = false;
@@ -175,18 +176,29 @@ public class SignatureParser
             defaultValue = ParseDefaultValue();
         }
 
+        // Compute Output flag based on type
+        // Output is true for pointer types that aren't strings or structs, unless @in is set
+        var isOutputPointer = type.IsPointer &&
+                              type.Category != TypeCategory.String &&
+                              type.Category != TypeCategory.Struct;
+
+        if (isOutputPointer)
+        {
+            flags |= ParamFlags.Output;
+        }
+
         return new NativeParameter
         {
             Name = isVariadic ? "..." + name : name,
             Type = type,
             DefaultValue = defaultValue,
-            Attributes = attributes
+            Flags = flags
         };
     }
 
-    private ParameterAttributes ParseAttributes()
+    private ParamFlags ParseAttributeFlags()
     {
-        var attrs = new ParameterAttributes();
+        var flags = ParamFlags.None;
 
         while (Check(TokenType.Attribute))
         {
@@ -194,24 +206,22 @@ public class SignatureParser
             switch (attr)
             {
                 case "@this":
-                    attrs.IsThis = true;
+                    flags |= ParamFlags.This;
                     break;
                 case "@notnull":
-                    attrs.IsNotNull = true;
+                    flags |= ParamFlags.NotNull;
                     break;
                 case "@in":
-                    attrs.IsIn = true;
+                    flags |= ParamFlags.In;
                     break;
-                default:
-                    attrs.CustomAttributes.Add(attr);
-                    break;
+                // Unknown attributes are silently ignored
             }
         }
 
-        return attrs;
+        return flags;
     }
 
-    private TypeInfo ParseTypeWithAttributes(ParameterAttributes attributes)
+    private TypeInfo ParseTypeInfo()
     {
         var typeToken = Expect(TokenType.Identifier, "Expected type name");
         var typeName = typeToken.Value;

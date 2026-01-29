@@ -220,37 +220,22 @@ internal class StructTokenParser
         }
 
         // Parse attributes (@in, @out, @padding, @alignas(N))
-        bool hasInAttr = false;
-        bool hasOutAttr = false;
-        bool hasPaddingAttr = false;
+        var flags = FieldFlags.None;
         int? fieldAlignment = null;
         while (Check(CTokenType.Attribute))
         {
             var attr = Advance().Value;
             if (attr == "@in")
-                hasInAttr = true;
+                flags |= FieldFlags.In;
             else if (attr == "@out")
-                hasOutAttr = true;
+                flags |= FieldFlags.Out;
             else if (attr == "@padding")
-                hasPaddingAttr = true;
+                flags |= FieldFlags.Padding;
             else if (attr == "@alignas")
                 fieldAlignment = ParseAlignasValue();
         }
         field.Alignment = fieldAlignment;
-
-        // If @padding, no accessors are generated
-        if (hasPaddingAttr)
-        {
-            field.IsPadding = true;
-            field.IsInput = false;
-            field.IsOutput = false;
-        }
-        // If explicit attributes are set, use them; otherwise default to both
-        else if (hasInAttr || hasOutAttr)
-        {
-            field.IsInput = hasInAttr;
-            field.IsOutput = hasOutAttr;
-        }
+        field.Flags = flags;
 
         if (!Check(CTokenType.Identifier))
             return null;

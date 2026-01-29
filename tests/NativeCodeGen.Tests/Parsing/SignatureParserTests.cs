@@ -19,7 +19,7 @@ public class SignatureParserTests
         var (_, _, parameters) = Parse("void TEST(@in int* value);");
 
         Assert.Single(parameters);
-        Assert.True(parameters[0].Attributes.IsIn);
+        Assert.True(parameters[0].IsIn);
         Assert.True(parameters[0].Type.IsPointer);
     }
 
@@ -29,7 +29,7 @@ public class SignatureParserTests
         var (_, _, parameters) = Parse("void TEST(@in float* value);");
 
         Assert.Single(parameters);
-        Assert.True(parameters[0].Attributes.IsIn);
+        Assert.True(parameters[0].IsIn);
     }
 
     [Fact]
@@ -38,7 +38,7 @@ public class SignatureParserTests
         var (_, _, parameters) = Parse("void DELETE_ENTITY(@in Entity* entity);");
 
         Assert.Single(parameters);
-        Assert.True(parameters[0].Attributes.IsIn);
+        Assert.True(parameters[0].IsIn);
         Assert.Equal(TypeCategory.Handle, parameters[0].Type.Category);
     }
 
@@ -48,7 +48,7 @@ public class SignatureParserTests
         var (_, _, parameters) = Parse("void TEST(@in Ped* ped);");
 
         Assert.Single(parameters);
-        Assert.True(parameters[0].Attributes.IsIn);
+        Assert.True(parameters[0].IsIn);
         Assert.Equal(TypeCategory.Handle, parameters[0].Type.Category);
     }
 
@@ -58,7 +58,7 @@ public class SignatureParserTests
         var (_, _, parameters) = Parse("void TEST(@in Vector3* coords);");
 
         Assert.Single(parameters);
-        Assert.True(parameters[0].Attributes.IsIn);
+        Assert.True(parameters[0].IsIn);
         Assert.Equal(TypeCategory.Vector3, parameters[0].Type.Category);
     }
 
@@ -94,8 +94,8 @@ public class SignatureParserTests
         var (_, _, parameters) = Parse("void TEST(Ped ped, @this Entity entity);");
 
         Assert.Equal(2, parameters.Count);
-        Assert.False(parameters[0].Attributes.IsThis);
-        Assert.True(parameters[1].Attributes.IsThis);
+        Assert.False(parameters[0].IsThis);
+        Assert.True(parameters[1].IsThis);
     }
 
     [Fact]
@@ -104,8 +104,8 @@ public class SignatureParserTests
         var (_, _, parameters) = Parse("void TEST(@this Entity entity, int value);");
 
         Assert.Equal(2, parameters.Count);
-        Assert.True(parameters[0].Attributes.IsThis);
-        Assert.False(parameters[1].Attributes.IsThis);
+        Assert.True(parameters[0].IsThis);
+        Assert.False(parameters[1].IsThis);
     }
 
     [Fact]
@@ -114,7 +114,7 @@ public class SignatureParserTests
         var (_, _, parameters) = Parse("void TEST(@notnull char* name);");
 
         Assert.Single(parameters);
-        Assert.True(parameters[0].Attributes.IsNotNull);
+        Assert.True(parameters[0].IsNotNull);
     }
 
     [Fact]
@@ -123,8 +123,8 @@ public class SignatureParserTests
         var (_, _, parameters) = Parse("void TEST(@this Entity entity, @notnull char* name, @in int* outValue);");
 
         Assert.Equal(3, parameters.Count);
-        Assert.True(parameters[0].Attributes.IsThis);
-        Assert.True(parameters[1].Attributes.IsNotNull);
-        Assert.True(parameters[2].Attributes.IsIn);
+        Assert.True(parameters[0].IsThis);
+        Assert.True(parameters[1].IsNotNull);
+        Assert.True(parameters[2].IsIn);
     }
 }

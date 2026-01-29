@@ -24,14 +24,14 @@ public static class ArgumentBuilder
         var useFloat = config.UseFloatWrapper;
         var useHash = config.UseHashWrapper;
 
-        // Output-only pointer (int*, float*, Vector3* without @in)
-        if (param.IsOutput)
+        // Pure output pointer (int*, float*, Vector3* without @in)
+        if (param.IsPureOutput)
         {
             return typeMapper.GetPointerPlaceholder(param.Type);
         }
 
         // Input+output pointer (int*, float*, Vector3*, Entity* with @in)
-        if (param.Type.IsPointer && param.Attributes.IsIn)
+        if (param.IsInOut)
         {
             var format = typeMapper.GetInitializedPointerFormat(param.Type);
             // Handle types need to pass .handle (unless raw mode)

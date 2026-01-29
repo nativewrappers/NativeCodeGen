@@ -53,6 +53,12 @@ public static class DatabaseConverter
             export.SharedExamples.Add(ConvertSharedExample(example));
         }
 
+        // Add type definitions
+        foreach (var (name, typeInfo) in TypeRegistry.GetTypeDefinitions())
+        {
+            export.Types.Add(new ExportTypeEntry { Name = name, Type = typeInfo });
+        }
+
         return export;
     }
 
@@ -75,18 +81,12 @@ public static class DatabaseConverter
 
     private static ExportParameter ConvertParameter(NativeParameter param)
     {
-        var flags = ParamFlags.None;
-        if (param.IsOutput) flags |= ParamFlags.Output;
-        if (param.Attributes.IsThis) flags |= ParamFlags.This;
-        if (param.Attributes.IsNotNull) flags |= ParamFlags.NotNull;
-        if (param.Attributes.IsIn) flags |= ParamFlags.In;
-
         return new ExportParameter
         {
             Name = param.Name,
             Type = param.Type.ToString(),
             Description = param.Description,
-            Flags = flags,
+            Flags = param.Flags,
             DefaultValue = param.DefaultValue
         };
     }
@@ -124,24 +124,12 @@ public static class DatabaseConverter
 
     private static ExportStructField ConvertStructField(StructField f)
     {
-        var flags = FieldFlags.None;
-        if (f.IsPadding) flags |= FieldFlags.Padding;
-        else
-        {
-            // @in = setter only (input to native)
-            // @out = getter only (output from native)
-            // Both true = full access (default, no flag needed)
-            // Both false = padding (handled above)
-            if (f.IsInput && !f.IsOutput) flags |= FieldFlags.In;
-            if (f.IsOutput && !f.IsInput) flags |= FieldFlags.Out;
-        }
-
         return new ExportStructField
         {
             Name = f.Name,
             Type = f.Type.ToString(),
             Comment = f.Comment,
-            Flags = flags,
+            Flags = f.Flags,
             ArraySize = f.ArraySize,
             NestedStructName = f.IsNestedStruct ? f.NestedStructName : null,
             Alignment = f.Alignment

@@ -1,4 +1,6 @@
+using System.Reflection;
 using NativeCodeGen.Core.Export;
+using NativeCodeGen.Core.Models;
 using ProtoBuf;
 
 namespace NativeCodeGen.Tests.Export;
@@ -357,5 +359,376 @@ public class ProtobufSerializationTests
         Assert.Equal(10, deserialized.Namespaces.Count);
         Assert.Equal(100, deserialized.Namespaces[0].Natives.Count);
         Assert.Equal("NATIVE_5_50", deserialized.Namespaces[5].Natives[50].Name);
+    }
+
+    [Fact]
+    public void SerializeAndDeserialize_WithTypes_RoundTrips()
+    {
+        var original = new ExportDatabase
+        {
+            Types = new List<ExportTypeEntry>
+            {
+                new ExportTypeEntry
+                {
+                    Name = "int",
+                    Type = new ExportTypeInfo
+                    {
+                        Category = ExportTypeCategory.Primitive,
+                        NativeType = "int",
+                        Description = "32-bit signed integer"
+                    }
+                },
+                new ExportTypeEntry
+                {
+                    Name = "Entity",
+                    Type = new ExportTypeInfo
+                    {
+                        Category = ExportTypeCategory.Handle,
+                        NativeType = "int",
+                        Description = "Base type for all world entities"
+                    }
+                },
+                new ExportTypeEntry
+                {
+                    Name = "Vector3",
+                    Type = new ExportTypeInfo
+                    {
+                        Category = ExportTypeCategory.Vector3,
+                        Description = "3D vector (x, y, z floats)"
+                    }
+                }
+            }
+        };
+
+        using var stream = new MemoryStream();
+        Serializer.Serialize(stream, original);
+        stream.Position = 0;
+        var deserialized = Serializer.Deserialize<ExportDatabase>(stream);
+
+        Assert.Equal(3, deserialized.Types.Count);
+
+        var intType = deserialized.Types[0];
+        Assert.Equal("int", intType.Name);
+        Assert.Equal(ExportTypeCategory.Primitive, intType.Type.Category);
+        Assert.Equal("int", intType.Type.NativeType);
+        Assert.Equal("32-bit signed integer", intType.Type.Description);
+
+        var entityType = deserialized.Types[1];
+        Assert.Equal("Entity", entityType.Name);
+        Assert.Equal(ExportTypeCategory.Handle, entityType.Type.Category);
+
+        var vectorType = deserialized.Types[2];
+        Assert.Equal("Vector3", vectorType.Name);
+        Assert.Equal(ExportTypeCategory.Vector3, vectorType.Type.Category);
+        Assert.Null(vectorType.Type.NativeType);
+    }
+
+    [Fact]
+    public void SerializeAndDeserialize_AllTypeCategories_RoundTrips()
+    {
+        var categories = Enum.GetValues<ExportTypeCategory>();
+        var original = new ExportDatabase
+        {
+            Types = categories.Select((cat, i) => new ExportTypeEntry
+            {
+                Name = $"Type_{cat}",
+                Type = new ExportTypeInfo { Category = cat }
+            }).ToList()
+        };
+
+        using var stream = new MemoryStream();
+        Serializer.Serialize(stream, original);
+        stream.Position = 0;
+        var deserialized = Serializer.Deserialize<ExportDatabase>(stream);
+
+        Assert.Equal(categories.Length, deserialized.Types.Count);
+        for (int i = 0; i < categories.Length; i++)
+        {
+            Assert.Equal(categories[i], deserialized.Types[i].Type.Category);
+        }
+    }
+
+    [Fact]
+    public void SerializeAndDeserialize_CombinedParamFlags_RoundTrips()
+    {
+        var original = new ExportDatabase
+        {
+            Namespaces = new List<ExportNamespace>
+            {
+                new ExportNamespace
+                {
+                    Name = "TEST",
+                    Natives = new List<ExportNative>
+                    {
+                        new ExportNative
+                        {
+                            Name = "TEST_NATIVE",
+                            Hash = "0x1234",
+                            Namespace = "TEST",
+                            ReturnType = "void",
+                            Parameters = new List<ExportParameter>
+                            {
+                                // Test combined flags: Output | In (value 9)
+                                new ExportParameter
+                                {
+                                    Name = "inOutParam",
+                                    Type = "int*",
+                                    Flags = ParamFlags.Output | ParamFlags.In
+                                },
+                                // Test combined flags: This | NotNull (value 6)
+                                new ExportParameter
+                                {
+                                    Name = "thisNotNull",
+                                    Type = "Entity",
+                                    Flags = ParamFlags.This | ParamFlags.NotNull
+                                },
+                                // Test all flags combined (value 15)
+                                new ExportParameter
+                                {
+                                    Name = "allFlags",
+                                    Type = "int*",
+                                    Flags = ParamFlags.Output | ParamFlags.This | ParamFlags.NotNull | ParamFlags.In
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        };
+
+        using var stream = new MemoryStream();
+        Serializer.Serialize(stream, original);
+        stream.Position = 0;
+        var deserialized = Serializer.Deserialize<ExportDatabase>(stream);
+
+        var native = deserialized.Namespaces[0].Natives[0];
+
+        // Verify combined flags are preserved
+        Assert.Equal(ParamFlags.Output | ParamFlags.In, native.Parameters[0].Flags);
+        Assert.True(native.Parameters[0].Flags.HasFlag(ParamFlags.Output));
+        Assert.True(native.Parameters[0].Flags.HasFlag(ParamFlags.In));
+        Assert.False(native.Parameters[0].Flags.HasFlag(ParamFlags.This));
+
+        Assert.Equal(ParamFlags.This | ParamFlags.NotNull, native.Parameters[1].Flags);
+
+        Assert.Equal(ParamFlags.Output | ParamFlags.This | ParamFlags.NotNull | ParamFlags.In, native.Parameters[2].Flags);
+        Assert.Equal((ParamFlags)15, native.Parameters[2].Flags);
+    }
+
+    [Fact]
+    public void SerializeAndDeserialize_CombinedFieldFlags_RoundTrips()
+    {
+        var original = new ExportDatabase
+        {
+            Structs = new List<ExportStruct>
+            {
+                new ExportStruct
+                {
+                    Name = "TestStruct",
+                    Fields = new List<ExportStructField>
+                    {
+                        // Test combined flags: In | Out (value 3) - bidirectional
+                        new ExportStructField
+                        {
+                            Name = "inOutField",
+                            Type = "int",
+                            Flags = FieldFlags.In | FieldFlags.Out
+                        },
+                        // Test combined flags: In | Padding (value 5) - unusual but valid
+                        new ExportStructField
+                        {
+                            Name = "inPadding",
+                            Type = "char",
+                            Flags = FieldFlags.In | FieldFlags.Padding
+                        },
+                        // Test all flags combined (value 7)
+                        new ExportStructField
+                        {
+                            Name = "allFlags",
+                            Type = "int",
+                            Flags = FieldFlags.In | FieldFlags.Out | FieldFlags.Padding
+                        }
+                    }
+                }
+            }
+        };
+
+        using var stream = new MemoryStream();
+        Serializer.Serialize(stream, original);
+        stream.Position = 0;
+        var deserialized = Serializer.Deserialize<ExportDatabase>(stream);
+
+        var structDef = deserialized.Structs[0];
+
+        // Verify combined flags are preserved
+        Assert.Equal(FieldFlags.In | FieldFlags.Out, structDef.Fields[0].Flags);
+        Assert.True(structDef.Fields[0].Flags.HasFlag(FieldFlags.In));
+        Assert.True(structDef.Fields[0].Flags.HasFlag(FieldFlags.Out));
+        Assert.False(structDef.Fields[0].Flags.HasFlag(FieldFlags.Padding));
+
+        Assert.Equal(FieldFlags.In | FieldFlags.Padding, structDef.Fields[1].Flags);
+
+        Assert.Equal(FieldFlags.In | FieldFlags.Out | FieldFlags.Padding, structDef.Fields[2].Flags);
+        Assert.Equal((FieldFlags)7, structDef.Fields[2].Flags);
+    }
+
+    /// <summary>
+    /// Verifies that all public properties on ProtoContract classes have ProtoMember attributes.
+    /// This test will fail if someone adds a new property but forgets the protobuf attribute.
+    /// </summary>
+    [Fact]
+    public void AllProtoContractClasses_HaveProtoMemberOnAllProperties()
+    {
+        var assembly = typeof(ExportDatabase).Assembly;
+        var protoContractTypes = assembly.GetTypes()
+            .Where(t => t.GetCustomAttribute<ProtoContractAttribute>() != null)
+            .ToList();
+
+        var errors = new List<string>();
+
+        foreach (var type in protoContractTypes)
+        {
+            var publicProperties = type.GetProperties(BindingFlags.Public | BindingFlags.Instance)
+                .Where(p => p.CanRead && p.CanWrite) // Only read-write properties need ProtoMember
+                .ToList();
+
+            foreach (var prop in publicProperties)
+            {
+                var hasProtoMember = prop.GetCustomAttribute<ProtoMemberAttribute>() != null;
+                if (!hasProtoMember)
+                {
+                    errors.Add($"{type.Name}.{prop.Name} is missing [ProtoMember] attribute");
+                }
+            }
+        }
+
+        if (errors.Count > 0)
+        {
+            Assert.Fail($"Found properties without [ProtoMember] attribute:\n{string.Join("\n", errors)}");
+        }
+    }
+
+    /// <summary>
+    /// Verifies that ProtoMember IDs are unique within each class.
+    /// </summary>
+    [Fact]
+    public void AllProtoContractClasses_HaveUniqueProtoMemberIds()
+    {
+        var assembly = typeof(ExportDatabase).Assembly;
+        var protoContractTypes = assembly.GetTypes()
+            .Where(t => t.GetCustomAttribute<ProtoContractAttribute>() != null)
+            .ToList();
+
+        var errors = new List<string>();
+
+        foreach (var type in protoContractTypes)
+        {
+            var protoMembers = type.GetProperties(BindingFlags.Public | BindingFlags.Instance)
+                .Select(p => new { Property = p, Attr = p.GetCustomAttribute<ProtoMemberAttribute>() })
+                .Where(x => x.Attr != null)
+                .ToList();
+
+            var duplicateIds = protoMembers
+                .GroupBy(x => x.Attr!.Tag)
+                .Where(g => g.Count() > 1)
+                .ToList();
+
+            foreach (var dup in duplicateIds)
+            {
+                var propNames = string.Join(", ", dup.Select(x => x.Property.Name));
+                errors.Add($"{type.Name} has duplicate ProtoMember ID {dup.Key}: {propNames}");
+            }
+        }
+
+        if (errors.Count > 0)
+        {
+            Assert.Fail($"Found duplicate ProtoMember IDs:\n{string.Join("\n", errors)}");
+        }
+    }
+
+    /// <summary>
+    /// Verifies that all enums used as property types in ProtoContract classes also have ProtoContract.
+    /// This ensures flag enums and other enum types are properly decorated for protobuf serialization.
+    /// </summary>
+    [Fact]
+    public void AllEnumsUsedInProtoContracts_HaveProtoContractAttribute()
+    {
+        var assembly = typeof(ExportDatabase).Assembly;
+        var protoContractTypes = assembly.GetTypes()
+            .Where(t => t.IsClass && t.GetCustomAttribute<ProtoContractAttribute>() != null)
+            .ToList();
+
+        var errors = new List<string>();
+        var checkedEnums = new HashSet<Type>();
+
+        foreach (var type in protoContractTypes)
+        {
+            var properties = type.GetProperties(BindingFlags.Public | BindingFlags.Instance)
+                .Where(p => p.GetCustomAttribute<ProtoMemberAttribute>() != null)
+                .ToList();
+
+            foreach (var prop in properties)
+            {
+                var propType = prop.PropertyType;
+
+                // Handle nullable types
+                var underlyingType = Nullable.GetUnderlyingType(propType) ?? propType;
+
+                if (underlyingType.IsEnum && !checkedEnums.Contains(underlyingType))
+                {
+                    checkedEnums.Add(underlyingType);
+
+                    if (underlyingType.GetCustomAttribute<ProtoContractAttribute>() == null)
+                    {
+                        errors.Add($"Enum {underlyingType.Name} (used in {type.Name}.{prop.Name}) is missing [ProtoContract] attribute");
+                    }
+                }
+            }
+        }
+
+        if (errors.Count > 0)
+        {
+            Assert.Fail($"Found enums without [ProtoContract] attribute:\n{string.Join("\n", errors)}");
+        }
+    }
+
+    /// <summary>
+    /// Lists all ProtoContract types for documentation/verification purposes.
+    /// </summary>
+    [Fact]
+    public void ListAllProtoContractTypes()
+    {
+        var assembly = typeof(ExportDatabase).Assembly;
+        var protoContractTypes = assembly.GetTypes()
+            .Where(t => t.GetCustomAttribute<ProtoContractAttribute>() != null)
+            .OrderBy(t => t.IsEnum ? 0 : 1)
+            .ThenBy(t => t.Name)
+            .ToList();
+
+        // This test just verifies we have the expected types
+        var expectedClasses = new[]
+        {
+            "ExportDatabase", "ExportNamespace", "ExportNative", "ExportParameter",
+            "ExportEnum", "ExportEnumMember", "ExportStruct", "ExportStructField",
+            "ExportNativeReference", "ExportSharedExample", "ExportTypeInfo", "ExportTypeEntry"
+        };
+
+        var expectedEnums = new[]
+        {
+            "ParamFlags", "FieldFlags", "ExportTypeCategory"
+        };
+
+        foreach (var expected in expectedClasses)
+        {
+            Assert.Contains(protoContractTypes, t => t.Name == expected && t.IsClass);
+        }
+
+        foreach (var expected in expectedEnums)
+        {
+            Assert.Contains(protoContractTypes, t => t.Name == expected && t.IsEnum);
+        }
+
+        // Total count check
+        Assert.Equal(expectedClasses.Length + expectedEnums.Length, protoContractTypes.Count);
     }
 }

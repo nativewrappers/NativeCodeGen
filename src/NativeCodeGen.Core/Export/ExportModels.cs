@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using NativeCodeGen.Core.Models;
 using ProtoBuf;
 
 namespace NativeCodeGen.Core.Export;
@@ -7,32 +8,8 @@ namespace NativeCodeGen.Core.Export;
 /// Export models for both JSON and Protobuf serialization.
 /// Use [JsonIgnore] for fields that should be skipped in JSON (e.g., redundant keys).
 /// Prefixed with "Export" to distinguish from parsing models.
+/// Flag enums (ParamFlags, FieldFlags) are defined in Models namespace and shared.
 /// </summary>
-
-/// <summary>
-/// Bitflags for parameter attributes. Omitted from JSON when 0.
-/// </summary>
-[Flags]
-public enum ParamFlags
-{
-    None = 0,
-    Output = 1,     // Pointer output parameter (value returned via pointer)
-    This = 2,       // @this - use as instance method receiver
-    NotNull = 4,    // @notnull - string cannot be null
-    In = 8          // @in - input+output pointer (uses initialized value)
-}
-
-/// <summary>
-/// Bitflags for struct field attributes. Omitted from JSON when 0.
-/// </summary>
-[Flags]
-public enum FieldFlags
-{
-    None = 0,
-    In = 1,         // @in - setter only (input to native)
-    Out = 2,        // @out - getter only (output from native)
-    Padding = 4     // @padding - no accessors, reserves space
-}
 
 [ProtoContract]
 public partial class ExportDatabase
@@ -48,6 +25,9 @@ public partial class ExportDatabase
 
     [ProtoMember(4)]
     public List<ExportSharedExample> SharedExamples { get; set; } = new();
+
+    [ProtoMember(5)]
+    public List<ExportTypeEntry> Types { get; set; } = new();
 }
 
 [ProtoContract]

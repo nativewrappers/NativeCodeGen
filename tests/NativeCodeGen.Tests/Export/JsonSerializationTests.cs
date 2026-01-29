@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using NativeCodeGen.Core.Export;
+using NativeCodeGen.Core.Models;
 
 namespace NativeCodeGen.Tests.Export;
 

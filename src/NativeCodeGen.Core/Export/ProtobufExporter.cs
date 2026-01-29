@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using NativeCodeGen.Core.Models;
 using NativeCodeGen.Core.Parsing;
 using ProtoBuf;
 
@@ -20,6 +21,11 @@ public class ProtobufExporter : IExporter
     [DynamicDependency(DynamicallyAccessedMemberTypes.All, typeof(ExportStructField))]
     [DynamicDependency(DynamicallyAccessedMemberTypes.All, typeof(ExportNativeReference))]
     [DynamicDependency(DynamicallyAccessedMemberTypes.All, typeof(ExportSharedExample))]
+    [DynamicDependency(DynamicallyAccessedMemberTypes.All, typeof(ExportTypeInfo))]
+    [DynamicDependency(DynamicallyAccessedMemberTypes.All, typeof(ExportTypeEntry))]
+    [DynamicDependency(DynamicallyAccessedMemberTypes.All, typeof(ExportTypeCategory))]
+    [DynamicDependency(DynamicallyAccessedMemberTypes.All, typeof(ParamFlags))]
+    [DynamicDependency(DynamicallyAccessedMemberTypes.All, typeof(FieldFlags))]
     public void Export(NativeDatabase db, string outputPath, ExportOptions options)
     {
         var exportDb = DatabaseConverter.Convert(db, options);

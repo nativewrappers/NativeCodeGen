@@ -107,19 +107,19 @@ public class DatabaseConverterTests
                                 {
                                     Name = "ped",
                                     Type = TypeInfo.Parse("Ped"),
-                                    Attributes = new ParameterAttributes { IsThis = true }
+                                    Flags = ParamFlags.This
                                 },
                                 new NativeParameter
                                 {
                                     Name = "name",
                                     Type = TypeInfo.Parse("char*"),
-                                    Attributes = new ParameterAttributes { IsNotNull = true }
+                                    Flags = ParamFlags.NotNull
                                 },
                                 new NativeParameter
                                 {
                                     Name = "value",
                                     Type = TypeInfo.Parse("int*"),
-                                    Attributes = new ParameterAttributes { IsIn = true }
+                                    Flags = ParamFlags.In | ParamFlags.Output
                                 }
                             }
                         }
@@ -160,7 +160,7 @@ public class DatabaseConverterTests
                                 // Non-pointer = not output
                                 new NativeParameter { Name = "x", Type = TypeInfo.Parse("float") },
                                 // Pointer (non-string) = output
-                                new NativeParameter { Name = "z", Type = TypeInfo.Parse("float*") }
+                                new NativeParameter { Name = "z", Type = TypeInfo.Parse("float*"), Flags = ParamFlags.Output }
                             }
                         }
                     }
@@ -278,8 +278,7 @@ public class DatabaseConverterTests
                         {
                             Name = "hash",
                             Type = TypeInfo.Parse("Hash"),
-                            IsInput = true,
-                            IsOutput = false // @in = setter only
+                            Flags = FieldFlags.In // setter only (@in)
                         },
                         new ModelStructField
                         {

@@ -120,8 +120,8 @@ public class RawNativeBuilder
     public void EmitFunction(NativeDefinition native, BindingStyle binding, string? moduleName = null, string? nameOverride = null)
     {
         var name = nameOverride ?? GetFunctionName(native.Name);
-        var inputParams = native.Parameters.Where(p => !p.IsOutput).ToList();
-        var outputParams = native.Parameters.Where(p => p.IsOutput).ToList();
+        var inputParams = native.Parameters.Where(p => !p.IsPureOutput).ToList();
+        var outputParams = native.Parameters.Where(p => p.IsPureOutput).ToList();
 
         // Emit doc comment
         EmitDoc(native, inputParams, outputParams);
@@ -295,7 +295,7 @@ public class RawNativeBuilder
             args.Add(native.Hash);
 
         // Input params - use ArgumentBuilder shared logic
-        foreach (var p in native.Parameters.Where(p => !p.IsOutput))
+        foreach (var p in native.Parameters.Where(p => !p.IsPureOutput))
         {
             args.Add(GetArgumentExpression(p));
         }

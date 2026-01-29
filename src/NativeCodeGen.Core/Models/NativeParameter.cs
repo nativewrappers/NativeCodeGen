@@ -4,29 +4,37 @@ public class NativeParameter
 {
     public string Name { get; set; } = string.Empty;
     public TypeInfo Type { get; set; } = new();
+
+    /// <summary>
+    /// Parameter attribute flags (@this, @notnull, @in, computed output).
+    /// </summary>
+    public ParamFlags Flags { get; set; } = ParamFlags.None;
+
     /// <summary>
     /// True if this is an output-only pointer parameter (excluded from method signature).
     /// Struct pointers are always inputs (we pass the buffer).
     /// Pointers with @in attribute are input+output (included in signature).
     /// </summary>
-    public bool IsOutput => Type.IsPointer &&
-                            Type.Category != TypeCategory.String &&
-                            Type.Category != TypeCategory.Struct &&
-                            !Attributes.IsIn;
+    public bool IsOutput => Flags.HasFlag(ParamFlags.Output);
+
+    /// <summary>
+    /// True if this is a pure output parameter (Output but not In).
+    /// These are excluded from method signatures and returned as tuple values.
+    /// </summary>
+    public bool IsPureOutput => Flags.IsPureOutput();
+
+    /// <summary>
+    /// True if this is an input+output parameter (both Output and In flags).
+    /// These appear in method signatures and use initialized pointer variants.
+    /// </summary>
+    public bool IsInOut => Flags.IsInOut();
+
     public string? DefaultValue { get; set; }
     public bool HasDefaultValue => DefaultValue != null;
-    public ParameterAttributes Attributes { get; set; } = new();
     public string? Description { get; set; }
-}
 
-public class ParameterAttributes
-{
-    public bool IsThis { get; set; }
-    public bool IsNotNull { get; set; }
-    /// <summary>
-    /// Indicates this is an input+output pointer parameter.
-    /// For int*/float*/Vector3* with @in, we use the initialized pointer variant.
-    /// </summary>
-    public bool IsIn { get; set; }
-    public List<string> CustomAttributes { get; set; } = new();
+    // Convenience accessors for common flag checks
+    public bool IsThis => Flags.HasFlag(ParamFlags.This);
+    public bool IsNotNull => Flags.HasFlag(ParamFlags.NotNull);
+    public bool IsIn => Flags.HasFlag(ParamFlags.In);
 }
