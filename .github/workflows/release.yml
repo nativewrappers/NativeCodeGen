@@ -12,6 +12,7 @@ env:
 jobs:
   build:
     strategy:
+      fail-fast: false
       matrix:
         include:
           - os: ubuntu-latest
@@ -25,6 +26,8 @@ jobs:
             artifact: nativegen-win-x64.exe
 
     runs-on: ${{ matrix.os }}
+    permissions:
+      contents: write
 
     steps:
       - uses: actions/checkout@v4
@@ -43,41 +46,18 @@ jobs:
 
       - name: Rename artifact (Unix)
         if: runner.os != 'Windows'
-        run: mv ./publish/nativegen ./publish/${{ matrix.artifact }}
+        run: |
+          mv ./publish/nativegen ./publish/${{ matrix.artifact }}
+          chmod +x ./publish/${{ matrix.artifact }}
 
       - name: Rename artifact (Windows)
         if: runner.os == 'Windows'
         run: move .\publish\nativegen.exe .\publish\${{ matrix.artifact }}
 
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.artifact }}
-          path: ./publish/${{ matrix.artifact }}
-
-  release:
-    needs: build
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-
-    steps:
-      - name: Download all artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: ./artifacts
-
-      - name: Prepare release files
-        run: |
-          mkdir -p release
-          find ./artifacts -type f -exec mv {} ./release/ \;
-          chmod +x ./release/nativegen-linux-* || true
-          ls -la ./release/
-
-      - name: Create Release
+      - name: Upload to Release
         uses: softprops/action-gh-release@v2
         with:
-          files: ./release/*
+          files: ./publish/${{ matrix.artifact }}
           generate_release_notes: true
           draft: false
           prerelease: ${{ contains(github.ref, '-') }}
