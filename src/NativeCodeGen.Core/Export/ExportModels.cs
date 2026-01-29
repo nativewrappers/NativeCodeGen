@@ -10,7 +10,7 @@ namespace NativeCodeGen.Core.Export;
 /// </summary>
 
 [ProtoContract]
-public class ExportDatabase
+public partial class ExportDatabase
 {
     [ProtoMember(1)]
     public List<ExportNamespace> Namespaces { get; set; } = new();
@@ -26,7 +26,7 @@ public class ExportDatabase
 }
 
 [ProtoContract]
-public class ExportNamespace
+public partial class ExportNamespace
 {
     [ProtoMember(1)]
     public string Name { get; set; } = string.Empty;
@@ -36,7 +36,7 @@ public class ExportNamespace
 }
 
 [ProtoContract]
-public class ExportNative
+public partial class ExportNative
 {
     [ProtoMember(1)]
     public string Name { get; set; } = string.Empty;
@@ -78,7 +78,7 @@ public class ExportNative
 }
 
 [ProtoContract]
-public class ExportParameter
+public partial class ExportParameter
 {
     [ProtoMember(1)]
     public string Name { get; set; } = string.Empty;
@@ -101,7 +101,7 @@ public class ExportParameter
 }
 
 [ProtoContract]
-public class ExportEnum
+public partial class ExportEnum
 {
     [ProtoMember(1)]
     [JsonIgnore]
@@ -119,7 +119,7 @@ public class ExportEnum
 }
 
 [ProtoContract]
-public class ExportEnumMember
+public partial class ExportEnumMember
 {
     [ProtoMember(1)]
     public string Name { get; set; } = string.Empty;
@@ -129,7 +129,7 @@ public class ExportEnumMember
 }
 
 [ProtoContract]
-public class ExportStruct
+public partial class ExportStruct
 {
     [ProtoMember(1)]
     [JsonIgnore]
@@ -147,7 +147,7 @@ public class ExportStruct
 }
 
 [ProtoContract]
-public class ExportStructField
+public partial class ExportStructField
 {
     [ProtoMember(1)]
     public string Name { get; set; } = string.Empty;
@@ -184,7 +184,7 @@ public class ExportStructField
 }
 
 [ProtoContract]
-public class ExportNativeReference
+public partial class ExportNativeReference
 {
     [ProtoMember(1)]
     public string Name { get; set; } = string.Empty;
@@ -194,7 +194,7 @@ public class ExportNativeReference
 }
 
 [ProtoContract]
-public class ExportSharedExample
+public partial class ExportSharedExample
 {
     [ProtoMember(1)]
     [JsonIgnore]

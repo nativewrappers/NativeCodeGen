@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using NativeCodeGen.Core.Parsing;
 using ProtoBuf;
 
@@ -5,10 +6,20 @@ namespace NativeCodeGen.Core.Export;
 
 /// <summary>
 /// Exports the native database to a binary protobuf file.
-/// The schema is defined in natives.proto (static file in this directory).
 /// </summary>
 public class ProtobufExporter : IExporter
 {
+    // Preserve all export model types for protobuf-net reflection
+    [DynamicDependency(DynamicallyAccessedMemberTypes.All, typeof(ExportDatabase))]
+    [DynamicDependency(DynamicallyAccessedMemberTypes.All, typeof(ExportNamespace))]
+    [DynamicDependency(DynamicallyAccessedMemberTypes.All, typeof(ExportNative))]
+    [DynamicDependency(DynamicallyAccessedMemberTypes.All, typeof(ExportParameter))]
+    [DynamicDependency(DynamicallyAccessedMemberTypes.All, typeof(ExportEnum))]
+    [DynamicDependency(DynamicallyAccessedMemberTypes.All, typeof(ExportEnumMember))]
+    [DynamicDependency(DynamicallyAccessedMemberTypes.All, typeof(ExportStruct))]
+    [DynamicDependency(DynamicallyAccessedMemberTypes.All, typeof(ExportStructField))]
+    [DynamicDependency(DynamicallyAccessedMemberTypes.All, typeof(ExportNativeReference))]
+    [DynamicDependency(DynamicallyAccessedMemberTypes.All, typeof(ExportSharedExample))]
     public void Export(NativeDatabase db, string outputPath, ExportOptions options)
     {
         var exportDb = DatabaseConverter.Convert(db, options);

@@ -1,0 +1,7 @@
+<Project>
+  <!-- Apply to all projects in the solution -->
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+    <DebugType>none</DebugType>
+    <DebugSymbols>false</DebugSymbols>
+  </PropertyGroup>
+</Project>

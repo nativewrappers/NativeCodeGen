@@ -19,14 +19,7 @@ public class JsonExporter : IExporter
             SharedExamples = exportDb.SharedExamples.ToDictionary(e => e.Name, e => e)
         };
 
-        var jsonOptions = new JsonSerializerOptions
-        {
-            WriteIndented = true,
-            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-            DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
-        };
-
-        var json = JsonSerializer.Serialize(output, jsonOptions);
+        var json = JsonSerializer.Serialize(output, ExportJsonContext.Default.JsonOutput);
 
         Directory.CreateDirectory(Path.GetDirectoryName(outputPath) ?? ".");
         File.WriteAllText(outputPath, json);

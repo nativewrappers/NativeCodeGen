@@ -1,0 +1,23 @@
+<linker>
+  <!-- Preserve protobuf-net assemblies for reflection-based serialization -->
+  <assembly fullname="protobuf-net" preserve="all">
+    <type fullname="*" preserve="all" />
+  </assembly>
+  <assembly fullname="protobuf-net.Core" preserve="all">
+    <type fullname="*" preserve="all" />
+  </assembly>
+
+  <!-- Preserve export models for protobuf serialization -->
+  <assembly fullname="NativeCodeGen.Core">
+    <type fullname="NativeCodeGen.Core.Export.ExportDatabase" preserve="all" />
+    <type fullname="NativeCodeGen.Core.Export.ExportNamespace" preserve="all" />
+    <type fullname="NativeCodeGen.Core.Export.ExportNative" preserve="all" />
+    <type fullname="NativeCodeGen.Core.Export.ExportParameter" preserve="all" />
+    <type fullname="NativeCodeGen.Core.Export.ExportEnum" preserve="all" />
+    <type fullname="NativeCodeGen.Core.Export.ExportEnumMember" preserve="all" />
+    <type fullname="NativeCodeGen.Core.Export.ExportStruct" preserve="all" />
+    <type fullname="NativeCodeGen.Core.Export.ExportStructField" preserve="all" />
+    <type fullname="NativeCodeGen.Core.Export.ExportNativeReference" preserve="all" />
+    <type fullname="NativeCodeGen.Core.Export.ExportSharedExample" preserve="all" />
+  </assembly>
+</linker>
