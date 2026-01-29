@@ -92,8 +92,10 @@ public class JsonSerializationTests
         var example = new ExportSharedExample
         {
             Name = "CreatePed",
-            Content = "local ped = CreatePed(...)",
-            Language = "lua"
+            Examples = new List<ExportSharedExampleCode>
+            {
+                new() { Content = "local ped = CreatePed(...)", Language = "lua" }
+            }
         };
 
         var json = JsonSerializer.Serialize(example, _jsonOptions);
@@ -242,7 +244,7 @@ public class JsonSerializationTests
             },
             SharedExamples = new Dictionary<string, ExportSharedExample>
             {
-                ["Example1"] = new ExportSharedExample { Name = "Example1", Content = "code" }
+                ["Example1"] = new ExportSharedExample { Name = "Example1", Examples = new List<ExportSharedExampleCode> { new() { Content = "code" } } }
             }
         };
 

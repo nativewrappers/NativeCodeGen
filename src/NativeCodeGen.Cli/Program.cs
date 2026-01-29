@@ -203,10 +203,23 @@ class Program
         // Load shared examples
         var sharedExampleRegistry = new SharedExampleRegistry();
         var sharedExamplesDir = Path.Combine(inputDir, "code", "shared-examples");
+        var sharedExampleErrors = new List<ParseError>();
         if (Directory.Exists(sharedExamplesDir))
         {
             sharedExampleRegistry.LoadExamples(sharedExamplesDir);
             Console.WriteLine($"Loaded {sharedExampleRegistry.Count} shared examples from {sharedExamplesDir}");
+
+            // Convert shared example errors to ParseErrors
+            foreach (var error in sharedExampleRegistry.Errors)
+            {
+                sharedExampleErrors.Add(new ParseError
+                {
+                    FilePath = error.Split(':')[0],
+                    Line = 1,
+                    Column = 1,
+                    Message = error.Contains(':') ? error[(error.IndexOf(':') + 2)..] : error
+                });
+            }
         }
         db.SharedExamples = sharedExampleRegistry.GetAllExamples();
 
@@ -333,6 +346,10 @@ class Program
             .ToList();
 
         db.Enums = enumRegistry.GetAllEnums();
+
+        // Add shared example errors
+        foreach (var error in sharedExampleErrors)
+            allErrors.Add(error);
 
         return (db, allErrors.ToList(), allWarnings.ToList());
     }

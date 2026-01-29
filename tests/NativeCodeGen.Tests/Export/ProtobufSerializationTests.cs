@@ -189,8 +189,12 @@ public class ProtobufSerializationTests
                 new ExportSharedExample
                 {
                     Name = "CreatePed",
-                    Content = "local ped = CreatePed(...)",
-                    Language = "lua"
+                    Title = "Creating a Ped",
+                    Examples = new List<ExportSharedExampleCode>
+                    {
+                        new() { Content = "local ped = CreatePed(...)", Language = "lua" },
+                        new() { Content = "const ped = CreatePed(...)", Language = "js" }
+                    }
                 }
             }
         };
@@ -203,8 +207,12 @@ public class ProtobufSerializationTests
         Assert.Single(deserialized.SharedExamples);
         var example = deserialized.SharedExamples[0];
         Assert.Equal("CreatePed", example.Name);
-        Assert.Equal("local ped = CreatePed(...)", example.Content);
-        Assert.Equal("lua", example.Language);
+        Assert.Equal("Creating a Ped", example.Title);
+        Assert.Equal(2, example.Examples.Count);
+        Assert.Equal("local ped = CreatePed(...)", example.Examples[0].Content);
+        Assert.Equal("lua", example.Examples[0].Language);
+        Assert.Equal("const ped = CreatePed(...)", example.Examples[1].Content);
+        Assert.Equal("js", example.Examples[1].Language);
     }
 
     [Fact]
@@ -710,7 +718,7 @@ public class ProtobufSerializationTests
         {
             "ExportDatabase", "ExportNamespace", "ExportNative", "ExportParameter",
             "ExportEnum", "ExportEnumMember", "ExportStruct", "ExportStructField",
-            "ExportNativeReference", "ExportSharedExample", "ExportTypeInfo", "ExportTypeEntry"
+            "ExportNativeReference", "ExportSharedExample", "ExportSharedExampleCode", "ExportTypeInfo", "ExportTypeEntry"
         };
 
         var expectedEnums = new[]

@@ -21,6 +21,7 @@ public class ProtobufExporter : IExporter
     [DynamicDependency(DynamicallyAccessedMemberTypes.All, typeof(ExportStructField))]
     [DynamicDependency(DynamicallyAccessedMemberTypes.All, typeof(ExportNativeReference))]
     [DynamicDependency(DynamicallyAccessedMemberTypes.All, typeof(ExportSharedExample))]
+    [DynamicDependency(DynamicallyAccessedMemberTypes.All, typeof(ExportSharedExampleCode))]
     [DynamicDependency(DynamicallyAccessedMemberTypes.All, typeof(ExportTypeInfo))]
     [DynamicDependency(DynamicallyAccessedMemberTypes.All, typeof(ExportTypeEntry))]
     [DynamicDependency(DynamicallyAccessedMemberTypes.All, typeof(ExportTypeCategory))]

@@ -166,8 +166,11 @@ public static class DatabaseConverter
         {
             Name = example.Name,
             Title = example.Title,
-            Content = example.Content,
-            Language = example.Language
+            Examples = example.Examples.Select(e => new ExportSharedExampleCode
+            {
+                Content = e.Content,
+                Language = e.Language
+            }).ToList()
         };
     }
 }

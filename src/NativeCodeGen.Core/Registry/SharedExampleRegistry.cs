@@ -24,6 +24,8 @@ public class SharedExampleRegistry
             .Build();
     }
 
+    public List<string> Errors { get; } = new();
+
     public void LoadExamples(string directory)
     {
         if (!Directory.Exists(directory))
@@ -36,14 +38,20 @@ public class SharedExampleRegistry
 
             // Extract frontmatter and code content
             var (frontmatter, body) = ParseFrontmatter(content);
-            var (language, code) = ParseCodeBlock(body);
+
+            if (string.IsNullOrWhiteSpace(frontmatter?.Title))
+            {
+                Errors.Add($"{file}: Missing required 'title' in frontmatter");
+                continue;
+            }
+
+            var codeBlocks = ParseCodeBlocks(body);
 
             _examples[name] = new SharedExample
             {
                 Name = name,
-                Title = frontmatter?.Title,
-                Content = code,
-                Language = language,
+                Title = frontmatter.Title,
+                Examples = codeBlocks,
                 SourceFile = file
             };
         }
@@ -82,8 +90,9 @@ public class SharedExampleRegistry
         }
     }
 
-    private static (string? language, string content) ParseCodeBlock(string content)
+    private static List<SharedExampleCode> ParseCodeBlocks(string content)
     {
+        var blocks = new List<SharedExampleCode>();
         var lines = content.Split('\n');
         var codeLines = new List<string>();
         string? language = null;
@@ -99,14 +108,19 @@ public class SharedExampleRegistry
                 {
                     // Start of code block - extract language
                     inCodeBlock = true;
+                    codeLines.Clear();
                     var langPart = trimmed[3..].Trim();
-                    if (!string.IsNullOrEmpty(langPart))
-                        language = langPart;
+                    language = !string.IsNullOrEmpty(langPart) ? langPart : null;
                 }
                 else
                 {
-                    // End of code block
+                    // End of code block - save it
                     inCodeBlock = false;
+                    blocks.Add(new SharedExampleCode
+                    {
+                        Content = string.Join("\n", codeLines).Trim(),
+                        Language = language
+                    });
                 }
             }
             else if (inCodeBlock)
@@ -115,7 +129,7 @@ public class SharedExampleRegistry
             }
         }
 
-        return (language, string.Join("\n", codeLines).Trim());
+        return blocks;
     }
 
     public bool Contains(string name) => _examples.ContainsKey(name);

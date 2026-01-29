@@ -5,6 +5,7 @@ using ParsingNs = NativeCodeGen.Core.Parsing.NativeNamespace;
 using ModelEnumMember = NativeCodeGen.Core.Models.EnumMember;
 using ModelStructField = NativeCodeGen.Core.Models.StructField;
 using ModelSharedExample = NativeCodeGen.Core.Models.SharedExample;
+using ModelSharedExampleCode = NativeCodeGen.Core.Models.SharedExampleCode;
 
 namespace NativeCodeGen.Tests.Export;
 
@@ -335,8 +336,12 @@ public class DatabaseConverterTests
                 ["CreatePed"] = new ModelSharedExample
                 {
                     Name = "CreatePed",
-                    Content = "local ped = CreatePed(...)",
-                    Language = "lua"
+                    Title = "Creating a Ped",
+                    Examples = new List<ModelSharedExampleCode>
+                    {
+                        new() { Content = "local ped = CreatePed(...)", Language = "lua" },
+                        new() { Content = "const ped = CreatePed(...)", Language = "js" }
+                    }
                 }
             }
         };
@@ -347,8 +352,12 @@ public class DatabaseConverterTests
         Assert.Single(result.SharedExamples);
         var example = result.SharedExamples[0];
         Assert.Equal("CreatePed", example.Name);
-        Assert.Equal("local ped = CreatePed(...)", example.Content);
-        Assert.Equal("lua", example.Language);
+        Assert.Equal("Creating a Ped", example.Title);
+        Assert.Equal(2, example.Examples.Count);
+        Assert.Equal("local ped = CreatePed(...)", example.Examples[0].Content);
+        Assert.Equal("lua", example.Examples[0].Language);
+        Assert.Equal("const ped = CreatePed(...)", example.Examples[1].Content);
+        Assert.Equal("js", example.Examples[1].Language);
     }
 
     [Fact]

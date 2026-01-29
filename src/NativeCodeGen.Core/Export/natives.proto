@@ -91,7 +91,11 @@ message NativeReference {
 
 message SharedExample {
   string name = 1;
-  optional string title = 2;
-  string content = 3;
-  optional string language = 4;
+  string title = 2;
+  repeated SharedExampleCode examples = 3;
+}
+
+message SharedExampleCode {
+  string content = 1;
+  optional string language = 2;
 }

@@ -191,11 +191,18 @@ public partial class ExportSharedExample
     public string Name { get; set; } = string.Empty;
 
     [ProtoMember(2)]
-    public string? Title { get; set; }
+    public string Title { get; set; } = string.Empty;
 
     [ProtoMember(3)]
+    public List<ExportSharedExampleCode> Examples { get; set; } = new();
+}
+
+[ProtoContract]
+public partial class ExportSharedExampleCode
+{
+    [ProtoMember(1)]
     public string Content { get; set; } = string.Empty;
 
-    [ProtoMember(4)]
+    [ProtoMember(2)]
     public string? Language { get; set; }
 }

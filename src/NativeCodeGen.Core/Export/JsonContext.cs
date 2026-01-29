@@ -22,6 +22,8 @@ namespace NativeCodeGen.Core.Export;
 [JsonSerializable(typeof(ExportStructField))]
 [JsonSerializable(typeof(ExportNativeReference))]
 [JsonSerializable(typeof(ExportSharedExample))]
+[JsonSerializable(typeof(ExportSharedExampleCode))]
+[JsonSerializable(typeof(List<ExportSharedExampleCode>))]
 [JsonSerializable(typeof(ParamFlags))]
 [JsonSerializable(typeof(FieldFlags))]
 [JsonSerializable(typeof(List<ExportNative>))]

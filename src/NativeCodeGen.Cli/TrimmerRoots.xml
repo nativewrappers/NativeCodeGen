@@ -19,5 +19,7 @@
     <type fullname="NativeCodeGen.Core.Export.ExportStructField" preserve="all" />
     <type fullname="NativeCodeGen.Core.Export.ExportNativeReference" preserve="all" />
     <type fullname="NativeCodeGen.Core.Export.ExportSharedExample" preserve="all" />
+    <type fullname="NativeCodeGen.Core.Export.ExportSharedExampleCode" preserve="all" />
+    <type fullname="NativeCodeGen.Core.Registry.SharedExampleFrontmatter" preserve="all" />
   </assembly>
 </linker>
