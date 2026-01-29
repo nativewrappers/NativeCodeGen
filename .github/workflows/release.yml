@@ -12,19 +12,19 @@ env:
 jobs:
   build:
     strategy:
+      fail-fast: false
       matrix:
         include:
           - os: ubuntu-latest
             rid: linux-x64
             artifact: nativegen-linux-x64
-          - os: ubuntu-latest
-            rid: linux-musl-x64
-            artifact: nativegen-linux-musl-x64
           - os: windows-latest
             rid: win-x64
             artifact: nativegen-win-x64.exe
 
     runs-on: ${{ matrix.os }}
+    permissions:
+      contents: write
 
     steps:
       - uses: actions/checkout@v4
@@ -43,41 +43,51 @@ jobs:
 
       - name: Rename artifact (Unix)
         if: runner.os != 'Windows'
-        run: mv ./publish/nativegen ./publish/${{ matrix.artifact }}
+        run: |
+          mv ./publish/nativegen ./publish/${{ matrix.artifact }}
+          chmod +x ./publish/${{ matrix.artifact }}
 
       - name: Rename artifact (Windows)
         if: runner.os == 'Windows'
         run: move .\publish\nativegen.exe .\publish\${{ matrix.artifact }}
 
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
+      - name: Upload to Release
+        uses: softprops/action-gh-release@v2
         with:
-          name: ${{ matrix.artifact }}
-          path: ./publish/${{ matrix.artifact }}
+          files: ./publish/${{ matrix.artifact }}
+          generate_release_notes: true
+          draft: false
+          prerelease: ${{ contains(github.ref, '-') }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  release:
-    needs: build
+  build-musl:
     runs-on: ubuntu-latest
+    container: mcr.microsoft.com/dotnet/sdk:10.0-preview-alpine
     permissions:
       contents: write
 
     steps:
-      - name: Download all artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: ./artifacts
+      - uses: actions/checkout@v4
 
-      - name: Prepare release files
+      - name: Install build dependencies
+        run: apk add --no-cache clang build-base zlib-dev
+
+      - name: Restore dependencies
+        run: dotnet restore NativeCodeGen.sln
+
+      - name: Publish
+        run: dotnet publish src/NativeCodeGen.Cli/NativeCodeGen.Cli.csproj -c Release -r linux-musl-x64 -o ./publish
+
+      - name: Rename artifact
         run: |
-          mkdir -p release
-          find ./artifacts -type f -exec mv {} ./release/ \;
-          chmod +x ./release/nativegen-linux-* || true
-          ls -la ./release/
+          mv ./publish/nativegen ./publish/nativegen-linux-musl-x64
+          chmod +x ./publish/nativegen-linux-musl-x64
 
-      - name: Create Release
+      - name: Upload to Release
         uses: softprops/action-gh-release@v2
         with:
-          files: ./release/*
+          files: ./publish/nativegen-linux-musl-x64
           generate_release_notes: true
           draft: false
           prerelease: ${{ contains(github.ref, '-') }}
