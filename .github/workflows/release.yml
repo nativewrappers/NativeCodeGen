@@ -36,11 +36,7 @@ jobs:
         run: dotnet restore NativeCodeGen.sln
 
       - name: Publish
-        run: |
-          dotnet publish src/NativeCodeGen.Cli/NativeCodeGen.Cli.csproj \
-            -c Release \
-            -r ${{ matrix.rid }} \
-            -o ./publish
+        run: dotnet publish src/NativeCodeGen.Cli/NativeCodeGen.Cli.csproj -c Release -r ${{ matrix.rid }} -o ./publish
 
       - name: Rename artifact (Unix)
         if: runner.os != 'Windows'

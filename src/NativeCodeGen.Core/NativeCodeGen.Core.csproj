@@ -9,7 +9,7 @@
   <ItemGroup>
     <PackageReference Include="Markdig" Version="0.34.0" />
     <PackageReference Include="protobuf-net" Version="3.2.45" />
-    <PackageReference Include="protobuf-net.BuildTools" Version="3.2.45" PrivateAssets="all" />
+    <PackageReference Include="protobuf-net.BuildTools" Version="3.2.46" PrivateAssets="all" />
     <PackageReference Include="YamlDotNet" Version="15.1.2" />
   </ItemGroup>
 
