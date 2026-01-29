@@ -1,0 +1,82 @@
+syntax = "proto3";
+
+package rdr3natives;
+
+message Database {
+  repeated Namespace namespaces = 1;
+  repeated Enum enums = 2;
+  repeated Struct structs = 3;
+  repeated SharedExample shared_examples = 4;
+}
+
+message Namespace {
+  string name = 1;
+  repeated Native natives = 2;
+}
+
+message Native {
+  string name = 1;
+  string hash = 2;
+  string namespace = 3;
+  string description = 4;
+  repeated Parameter parameters = 5;
+  string return_type = 6;
+  string return_description = 7;
+  repeated string aliases = 8;
+  repeated string used_enums = 9;
+  string apiset = 10;
+  repeated string related_examples = 11;
+}
+
+message Parameter {
+  string name = 1;
+  string type = 2;
+  string description = 3;
+  repeated string attributes = 4;
+  optional string default_value = 5;
+  bool is_output = 6;
+}
+
+message Enum {
+  string name = 1;
+  optional string base_type = 2;
+  repeated EnumMember members = 3;
+  repeated string used_by_natives = 4;
+}
+
+message EnumMember {
+  string name = 1;
+  optional string value = 2;
+}
+
+message Struct {
+  string name = 1;
+  repeated StructField fields = 2;
+  repeated NativeReference used_by_natives = 3;
+  optional int32 default_alignment = 4;
+}
+
+message StructField {
+  string name = 1;
+  string type = 2;
+  optional string comment = 3;
+  bool is_input = 4;
+  bool is_output = 5;
+  int32 array_size = 6;
+  bool is_array = 7;
+  bool is_nested_struct = 8;
+  optional string nested_struct_name = 9;
+  bool is_padding = 10;
+  optional int32 alignment = 11;
+}
+
+message NativeReference {
+  string name = 1;
+  string hash = 2;
+}
+
+message SharedExample {
+  string name = 1;
+  string content = 2;
+  optional string language = 3;
+}

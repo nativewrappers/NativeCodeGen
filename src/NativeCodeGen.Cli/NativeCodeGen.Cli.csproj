@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+
+    <!-- Assembly info -->
+    <AssemblyName>nativegen</AssemblyName>
+    <RootNamespace>NativeCodeGen.Cli</RootNamespace>
+    <Version>1.1.0</Version>
+    <Authors>Dillon Skaggs</Authors>
+    <Description>Code generator for RDR3 native functions</Description>
+
+    <!-- .NET Tool configuration -->
+    <PackAsTool>true</PackAsTool>
+    <ToolCommandName>nativegen</ToolCommandName>
+    <PackageId>NativeCodeGen</PackageId>
+    <PackageOutputPath>./nupkg</PackageOutputPath>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="System.CommandLine" Version="2.0.0-beta4.22272.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\NativeCodeGen.Core\NativeCodeGen.Core.csproj" />
+    <ProjectReference Include="..\NativeCodeGen.Lua\NativeCodeGen.Lua.csproj" />
+    <ProjectReference Include="..\NativeCodeGen.TypeScript\NativeCodeGen.TypeScript.csproj" />
+  </ItemGroup>
+
+</Project>

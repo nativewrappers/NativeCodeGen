@@ -1,0 +1,388 @@
+using NativeCodeGen.Core.Generation;
+using NativeCodeGen.Core.Models;
+
+namespace NativeCodeGen.Lua;
+
+/// <summary>
+/// Lua-specific code emitter.
+/// </summary>
+public class LuaEmitter : ILanguageEmitter
+{
+    private readonly LuaTypeMapper _typeMapper = new();
+
+    public ITypeMapper TypeMapper => _typeMapper;
+    public string FileExtension => ".lua";
+    public string SelfReference => "self";
+
+    public DocBuilder CreateDocBuilder() => new LuaDocBuilder();
+
+    // === Enum Generation ===
+
+    public void EmitEnumStart(CodeBuilder cb, string enumName)
+    {
+        cb.AppendLine($"---@enum {enumName}");
+        cb.AppendLine($"{enumName} = {{");
+        cb.Indent();
+    }
+
+    public void EmitEnumMember(CodeBuilder cb, string memberName, string? value, string? comment)
+    {
+        var val = value ?? "nil";
+        cb.AppendLine($"{memberName} = {val},");
+    }
+
+    public void EmitEnumEnd(CodeBuilder cb, string enumName)
+    {
+        cb.Dedent();
+        cb.AppendLine("}");
+        cb.AppendLine();
+        cb.AppendLine($"return {enumName}");
+    }
+
+    // === Class Generation ===
+
+    public void EmitClassStart(CodeBuilder cb, string className, string? baseClass, ClassKind kind)
+    {
+        switch (kind)
+        {
+            case ClassKind.Handle:
+                cb.AppendLine($"---@class {className}{(baseClass != null ? $" : {baseClass}" : "")}");
+                cb.AppendLine($"---@field handle number");
+                cb.AppendLine($"local {className} = {{}}");
+                if (baseClass != null)
+                {
+                    cb.AppendLine($"setmetatable({className}, {{ __index = {baseClass} }})");
+                }
+                cb.AppendLine($"{className}.__index = {className}");
+                cb.AppendLine();
+                break;
+
+            case ClassKind.Task:
+                var entityType = NativeClassifier.GetTaskEntityType(className);
+                cb.AppendLine($"---@class {className}");
+                cb.AppendLine($"---@field entity {entityType}");
+                cb.AppendLine($"local {className} = {{}}");
+                cb.AppendLine($"{className}.__index = {className}");
+                cb.AppendLine();
+                break;
+
+            case ClassKind.Model:
+                cb.AppendLine($"---@class {className}");
+                cb.AppendLine($"---@field hash number");
+                cb.AppendLine($"local {className} = {{}}");
+                cb.AppendLine($"{className}.__index = {className}");
+                cb.AppendLine();
+                break;
+
+            case ClassKind.Namespace:
+                cb.AppendLine($"---@class {className}");
+                cb.AppendLine($"local {className} = {{}}");
+                cb.AppendLine();
+                break;
+        }
+    }
+
+    public void EmitClassEnd(CodeBuilder cb, string className)
+    {
+        cb.AppendLine($"return {className}");
+    }
+
+    public void EmitHandleConstructor(CodeBuilder cb, string className, string? baseClass)
+    {
+        cb.AppendLine($"---@param handle number");
+        cb.AppendLine($"---@return {className}");
+        cb.AppendLine($"function {className}.new(handle)");
+        cb.Indent();
+        if (baseClass != null)
+        {
+            cb.AppendLine($"local self = {baseClass}.new(handle)");
+            cb.AppendLine($"setmetatable(self, {className})");
+        }
+        else
+        {
+            cb.AppendLine($"local self = setmetatable({{}}, {className})");
+            cb.AppendLine("self.handle = handle");
+        }
+        cb.AppendLine("return self");
+        cb.Dedent();
+        cb.AppendLine("end");
+        cb.AppendLine();
+    }
+
+    public void EmitFromHandleMethod(CodeBuilder cb, string className)
+    {
+        cb.AppendLine($"---@param handle number");
+        cb.AppendLine($"---@return {className}|nil");
+        cb.AppendLine($"function {className}.fromHandle(handle)");
+        cb.Indent();
+        cb.AppendLine("if handle == 0 then return nil end");
+        cb.AppendLine($"return {className}.new(handle)");
+        cb.Dedent();
+        cb.AppendLine("end");
+        cb.AppendLine();
+    }
+
+    public void EmitTaskConstructor(CodeBuilder cb, string className, string entityType)
+    {
+        cb.AppendLine($"---@param entity {entityType}");
+        cb.AppendLine($"---@return {className}");
+        cb.AppendLine($"function {className}.new(entity)");
+        cb.Indent();
+        cb.AppendLine($"local self = setmetatable({{}}, {className})");
+        cb.AppendLine("self.entity = entity");
+        cb.AppendLine("return self");
+        cb.Dedent();
+        cb.AppendLine("end");
+        cb.AppendLine();
+    }
+
+    public void EmitModelConstructor(CodeBuilder cb, string className)
+    {
+        cb.AppendLine($"---@param hash number");
+        cb.AppendLine($"---@return {className}");
+        cb.AppendLine($"function {className}.new(hash)");
+        cb.Indent();
+        cb.AppendLine($"local self = setmetatable({{}}, {className})");
+        cb.AppendLine("self.hash = hash");
+        cb.AppendLine("return self");
+        cb.Dedent();
+        cb.AppendLine("end");
+        cb.AppendLine();
+    }
+
+    // === Method Generation ===
+
+    public void EmitMethodStart(CodeBuilder cb, string className, string methodName, List<MethodParameter> parameters, string returnType, MethodKind kind)
+    {
+        var paramNames = string.Join(", ", parameters.Select(p => p.Name));
+        var separator = kind == MethodKind.Instance ? ":" : ".";
+        cb.AppendLine($"function {className}{separator}{methodName}({paramNames})");
+        cb.Indent();
+    }
+
+    public void EmitMethodEnd(CodeBuilder cb)
+    {
+        cb.Dedent();
+        cb.AppendLine("end");
+        cb.AppendLine();
+    }
+
+    public void EmitInvokeNative(CodeBuilder cb, string hash, List<string> args, TypeInfo returnType)
+    {
+        var allArgs = new List<string> { hash };
+        allArgs.AddRange(args);
+
+        if (_typeMapper.NeedsResultMarker(returnType))
+        {
+            allArgs.Add(_typeMapper.GetResultMarker(returnType));
+        }
+
+        var invokeExpr = $"Citizen.InvokeNative({string.Join(", ", allArgs)})";
+
+        if (returnType.Category == TypeCategory.Void)
+        {
+            cb.AppendLine(invokeExpr);
+        }
+        else if (_typeMapper.IsHandleType(returnType))
+        {
+            var handleClass = NativeClassifier.NormalizeHandleType(returnType.Name);
+            cb.AppendLine($"return {handleClass}.fromHandle({invokeExpr})");
+        }
+        else
+        {
+            cb.AppendLine($"return {invokeExpr}");
+        }
+    }
+
+    // === Struct Generation ===
+
+    public void EmitStructStart(CodeBuilder cb, string structName, int size, List<string> nestedStructImports)
+    {
+        // Lua doesn't need imports at the top - assumes globals
+        cb.AppendLine($"---@class {structName}");
+        cb.AppendLine($"local {structName} = {{}}");
+        cb.AppendLine($"{structName}.__index = {structName}");
+        cb.AppendLine();
+        cb.AppendLine($"{structName}.SIZE = 0x{size:X}");
+        cb.AppendLine();
+    }
+
+    public void EmitStructDocumentation(CodeBuilder cb, StructDefinition structDef)
+    {
+        // Lua doesn't need struct-level usage documentation
+        // The @class annotation is sufficient
+    }
+
+    public void EmitStructEnd(CodeBuilder cb, string structName)
+    {
+        cb.AppendLine($"return {structName}");
+    }
+
+    public void EmitStructConstructor(CodeBuilder cb, string structName, int size, bool supportsNesting)
+    {
+        cb.AppendLine($"function {structName}.new(existingView, offset)");
+        cb.Indent();
+        cb.AppendLine($"local self = setmetatable({{}}, {structName})");
+        cb.AppendLine("if existingView and offset then");
+        cb.Indent();
+        cb.AppendLine("self._view = existingView");
+        cb.AppendLine("self._offset = offset");
+        cb.AppendLine("self.buffer = existingView.buffer");
+        cb.Dedent();
+        cb.AppendLine("else");
+        cb.Indent();
+        cb.AppendLine($"self._view = DataView.ArrayBuffer(0x{size:X})");
+        cb.AppendLine("self._offset = 0");
+        cb.AppendLine("self.buffer = self._view.buffer");
+        cb.Dedent();
+        cb.AppendLine("end");
+        cb.AppendLine("return self");
+        cb.Dedent();
+        cb.AppendLine("end");
+        cb.AppendLine();
+    }
+
+    public void EmitPrimitiveGetter(CodeBuilder cb, string structName, string fieldName, int offset, TypeInfo type, string? comment)
+    {
+        var (luaType, getter, _) = _typeMapper.GetDataViewAccessor(type);
+        var needsEndian = StructLayoutCalculator.NeedsEndianArgument(type);
+        var endianArg = needsEndian ? ", true" : "";
+
+        new LuaDocBuilder()
+            .AddReturn(luaType)
+            .Render(cb);
+
+        cb.AppendLine($"function {structName}:get{fieldName}()");
+        cb.Indent();
+
+        if (luaType == "boolean")
+        {
+            cb.AppendLine($"return self._view:{getter}(self._offset + {offset}{endianArg}) ~= 0");
+        }
+        else
+        {
+            cb.AppendLine($"return self._view:{getter}(self._offset + {offset}{endianArg})");
+        }
+
+        cb.Dedent();
+        cb.AppendLine("end");
+        cb.AppendLine();
+    }
+
+    public void EmitPrimitiveSetter(CodeBuilder cb, string structName, string fieldName, int offset, TypeInfo type)
+    {
+        var (luaType, _, setter) = _typeMapper.GetDataViewAccessor(type);
+        var needsEndian = StructLayoutCalculator.NeedsEndianArgument(type);
+        var endianArg = needsEndian ? ", true" : "";
+
+        new LuaDocBuilder()
+            .AddParam("value", luaType)
+            .Render(cb);
+
+        cb.AppendLine($"function {structName}:set{fieldName}(value)");
+        cb.Indent();
+
+        if (luaType == "boolean")
+        {
+            cb.AppendLine($"self._view:{setter}(self._offset + {offset}, value and 1 or 0{endianArg})");
+        }
+        else
+        {
+            cb.AppendLine($"self._view:{setter}(self._offset + {offset}, value{endianArg})");
+        }
+
+        cb.Dedent();
+        cb.AppendLine("end");
+        cb.AppendLine();
+    }
+
+    public void EmitArrayGetter(CodeBuilder cb, string structName, string fieldName, int offset, int elementSize, int arraySize, TypeInfo type, string? comment)
+    {
+        var (luaType, getter, _) = _typeMapper.GetDataViewAccessor(type);
+        var needsEndian = StructLayoutCalculator.NeedsEndianArgument(type);
+        var endianArg = needsEndian ? ", true" : "";
+
+        new LuaDocBuilder()
+            .AddParam("index", "number", $"Array index (0-{arraySize - 1})")
+            .AddReturn(luaType)
+            .Render(cb);
+
+        cb.AppendLine($"function {structName}:get{fieldName}(index)");
+        cb.Indent();
+        cb.AppendLine($"if index < 0 or index >= {arraySize} then error('Index out of bounds') end");
+
+        if (luaType == "boolean")
+        {
+            cb.AppendLine($"return self._view:{getter}(self._offset + {offset} + index * {elementSize}{endianArg}) ~= 0");
+        }
+        else
+        {
+            cb.AppendLine($"return self._view:{getter}(self._offset + {offset} + index * {elementSize}{endianArg})");
+        }
+
+        cb.Dedent();
+        cb.AppendLine("end");
+        cb.AppendLine();
+    }
+
+    public void EmitArraySetter(CodeBuilder cb, string structName, string fieldName, int offset, int elementSize, int arraySize, TypeInfo type)
+    {
+        var (luaType, _, setter) = _typeMapper.GetDataViewAccessor(type);
+        var needsEndian = StructLayoutCalculator.NeedsEndianArgument(type);
+        var endianArg = needsEndian ? ", true" : "";
+
+        new LuaDocBuilder()
+            .AddParam("index", "number", $"Array index (0-{arraySize - 1})")
+            .AddParam("value", luaType)
+            .Render(cb);
+
+        cb.AppendLine($"function {structName}:set{fieldName}(index, value)");
+        cb.Indent();
+        cb.AppendLine($"if index < 0 or index >= {arraySize} then error('Index out of bounds') end");
+
+        if (luaType == "boolean")
+        {
+            cb.AppendLine($"self._view:{setter}(self._offset + {offset} + index * {elementSize}, value and 1 or 0{endianArg})");
+        }
+        else
+        {
+            cb.AppendLine($"self._view:{setter}(self._offset + {offset} + index * {elementSize}, value{endianArg})");
+        }
+
+        cb.Dedent();
+        cb.AppendLine("end");
+        cb.AppendLine();
+    }
+
+    public void EmitNestedStructAccessor(CodeBuilder cb, string structName, string fieldName, string nestedStructName, int offset, bool isArray, int arraySize, string? comment)
+    {
+        if (isArray)
+        {
+            new LuaDocBuilder()
+                .AddParam("index", "number", $"Array index (0-{arraySize - 1})")
+                .AddReturn(nestedStructName)
+                .Render(cb);
+
+            cb.AppendLine($"function {structName}:get{fieldName}(index)");
+            cb.Indent();
+            cb.AppendLine($"if index < 0 or index >= {arraySize} then error('Index out of bounds') end");
+            cb.AppendLine($"return {nestedStructName}.new(self._view, self._offset + {offset} + index * {nestedStructName}.SIZE)");
+            cb.Dedent();
+            cb.AppendLine("end");
+            cb.AppendLine();
+        }
+        else
+        {
+            new LuaDocBuilder()
+                .AddReturn(nestedStructName)
+                .Render(cb);
+
+            cb.AppendLine($"function {structName}:get{fieldName}()");
+            cb.Indent();
+            cb.AppendLine($"return {nestedStructName}.new(self._view, self._offset + {offset})");
+            cb.Dedent();
+            cb.AppendLine("end");
+            cb.AppendLine();
+        }
+    }
+}
