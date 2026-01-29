@@ -55,4 +55,23 @@ public interface ITypeMapper
     /// Returns (languageType, getMethod, setMethod).
     /// </summary>
     (string LanguageType, string GetMethod, string SetMethod) GetDataViewAccessor(TypeInfo type);
+
+    /// <summary>
+    /// Gets the mapped type for a pointer/output parameter (the type that will be returned).
+    /// E.g., "int*" -> "number", "float*" -> "number", "Vector3*" -> "Vector3"
+    /// </summary>
+    string GetOutputParamType(TypeInfo type);
+
+    /// <summary>
+    /// Builds the combined return type including the native return type and all output parameters.
+    /// Returns a tuple type if there are output params, otherwise the simple return type.
+    /// E.g., (BOOL return, float* out) -> "[boolean, number]"
+    /// </summary>
+    string BuildCombinedReturnType(TypeInfo returnType, IEnumerable<TypeInfo> outputParamTypes);
+
+    /// <summary>
+    /// Gets the raw invoke return type that matches the combined return type.
+    /// E.g., for tuple [boolean, number, number], returns the invoke equivalent.
+    /// </summary>
+    string GetInvokeCombinedReturnType(TypeInfo returnType, IEnumerable<TypeInfo> outputParamTypes);
 }

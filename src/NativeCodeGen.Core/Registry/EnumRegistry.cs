@@ -45,6 +45,20 @@ public class EnumRegistry
 
     public bool Contains(string name) => _enums.ContainsKey(name);
 
+    /// <summary>
+    /// Gets the base type of an enum by name. Returns null if not found.
+    /// Used for resolving enum types in signatures.
+    /// </summary>
+    public string? GetBaseType(string name)
+    {
+        if (_enums.TryGetValue(name, out var enumDef))
+        {
+            // Default to "int" if no base type specified
+            return enumDef.BaseType ?? "int";
+        }
+        return null;
+    }
+
     public Dictionary<string, EnumDefinition> GetAllEnums() => new(_enums);
 
     public int Count => _enums.Count;

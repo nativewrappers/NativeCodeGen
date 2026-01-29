@@ -22,7 +22,7 @@ public class LuaGenerator : ICodeGenerator
         _enumGenerator = new SharedEnumGenerator(_emitter);
     }
 
-    public void Generate(NativeDatabase db, string outputPath, bool useClasses)
+    public void Generate(NativeDatabase db, string outputPath, GeneratorOptions options)
     {
         Directory.CreateDirectory(outputPath);
 
@@ -43,17 +43,20 @@ public class LuaGenerator : ICodeGenerator
             _structGenerator.GenerateFile(structDef, structsDir);
         }
 
-        if (useClasses)
+        if (options.UseClasses)
         {
             GenerateClassOutput(db, outputPath);
+        }
+        else if (options.SingleFile)
+        {
+            GenerateSingleFileOutput(db, outputPath);
         }
         else
         {
             GenerateNamespaceOutput(db, outputPath);
         }
 
-        // Generate fxmanifest.lua
-        GenerateFxManifest(db, outputPath, useClasses);
+        GenerateFxManifest(db, outputPath, options);
     }
 
     private void GenerateNamespaceOutput(NativeDatabase db, string outputPath)
@@ -61,19 +64,65 @@ public class LuaGenerator : ICodeGenerator
         var nativesDir = Path.Combine(outputPath, "natives");
         Directory.CreateDirectory(nativesDir);
 
+        var builder = new RawNativeBuilder(Language.Lua, _emitter.TypeMapper);
+
         foreach (var ns in db.Namespaces)
         {
-            var content = GenerateNamespace(ns);
-            File.WriteAllText(Path.Combine(nativesDir, $"{ns.Name}.lua"), content);
+            builder.Clear();
+            builder.EmitImports();
+
+            var moduleName = ToPascalCase(ns.Name.ToLowerInvariant());
+            builder.EmitModuleHeader(moduleName);
+
+            foreach (var native in ns.Natives)
+            {
+                builder.EmitFunction(native, BindingStyle.Module, moduleName);
+            }
+
+            builder.EmitModuleFooter(moduleName);
+
+            File.WriteAllText(Path.Combine(nativesDir, $"{ns.Name}.lua"), builder.ToString());
         }
+    }
+
+    private void GenerateSingleFileOutput(NativeDatabase db, string outputPath)
+    {
+        // Build a map of function names to detect duplicates
+        var nameCount = new Dictionary<string, int>();
+        foreach (var ns in db.Namespaces)
+        {
+            foreach (var native in ns.Natives)
+            {
+                var name = GetFunctionName(native.Name);
+                nameCount[name] = nameCount.GetValueOrDefault(name, 0) + 1;
+            }
+        }
+
+        var builder = new RawNativeBuilder(Language.Lua, _emitter.TypeMapper);
+        builder.EmitImports(singleFile: true);
+
+        foreach (var ns in db.Namespaces.OrderBy(n => n.Name))
+        {
+            foreach (var native in ns.Natives)
+            {
+                var baseName = GetFunctionName(native.Name);
+                var finalName = nameCount.TryGetValue(baseName, out var count) && count > 1
+                    ? ToPascalCase(ns.Name.ToLowerInvariant()) + baseName
+                    : baseName;
+
+                builder.EmitFunction(native, BindingStyle.Global, nameOverride: finalName);
+            }
+        }
+
+        File.WriteAllText(Path.Combine(outputPath, "natives.lua"), builder.ToString());
     }
 
     private void GenerateClassOutput(NativeDatabase db, string outputPath)
     {
         var classifier = new NativeClassifier();
         var classNatives = classifier.Classify(db);
+        var handleClassNames = classNatives.HandleClasses.Keys.ToHashSet();
 
-        // Generate handle classes
         var classesDir = Path.Combine(outputPath, "classes");
         Directory.CreateDirectory(classesDir);
         foreach (var (className, natives) in classNatives.HandleClasses)
@@ -83,87 +132,22 @@ public class LuaGenerator : ICodeGenerator
             File.WriteAllText(Path.Combine(classesDir, $"{className}.lua"), content);
         }
 
-        // Generate namespace classes
         var namespacesDir = Path.Combine(outputPath, "namespaces");
         Directory.CreateDirectory(namespacesDir);
         foreach (var (namespaceName, natives) in classNatives.NamespaceClasses)
         {
-            var content = _classGenerator.GenerateNamespaceClass(namespaceName, natives);
-            var className = NameConverter.NamespaceToClassName(namespaceName);
+            var className = NameConverter.NamespaceToClassName(namespaceName, handleClassNames);
+            var content = _classGenerator.GenerateNamespaceClass(namespaceName, natives, handleClassNames);
             File.WriteAllText(Path.Combine(namespacesDir, $"{className}.lua"), content);
         }
     }
 
-    private string GenerateNamespace(NativeNamespace ns)
-    {
-        var cb = new CodeBuilder();
-        var moduleName = NameConverter.NamespaceToClassName(ns.Name);
-
-        cb.AppendLine($"---@class {moduleName}");
-        cb.AppendLine($"local {moduleName} = {{}}");
-        cb.AppendLine();
-
-        foreach (var native in ns.Natives)
-        {
-            GenerateFunction(cb, native, moduleName, ns.Name);
-        }
-
-        cb.AppendLine($"return {moduleName}");
-
-        return cb.ToString();
-    }
-
-    private void GenerateFunction(CodeBuilder cb, NativeDefinition native, string moduleName, string namespaceName)
-    {
-        var functionName = NameDeduplicator.DeduplicateForNamespace(native.Name, namespaceName, NamingConvention.PascalCase);
-        var inputParams = native.Parameters.Where(p => !p.IsOutput).ToList();
-
-        // Build doc using shared DocBuilder
-        var doc = new LuaDocBuilder()
-            .AddDescription(native.Description);
-
-        foreach (var param in inputParams)
-        {
-            var luaType = _emitter.TypeMapper.MapType(param.Type, param.Attributes.IsNotNull);
-            doc.AddParam(param.Name, luaType, param.Description);
-        }
-
-        if (native.ReturnType.Category != TypeCategory.Void)
-        {
-            var returnType = _emitter.TypeMapper.GetInvokeReturnType(native.ReturnType);
-            doc.AddReturn(returnType, native.ReturnDescription);
-        }
-
-        doc.Render(cb);
-
-        // Function signature (only input params)
-        var paramNames = string.Join(", ", inputParams.Select(p => p.Name));
-        cb.AppendLine($"function {moduleName}.{functionName}({paramNames})");
-        cb.Indent();
-
-        // Function body - pass ALL parameters (ArgumentBuilder handles output pointers)
-        var args = ArgumentBuilder.BuildInvokeArgs(native, native.Parameters, _emitter.TypeMapper, "{0}");
-
-        if (native.ReturnType.Category == TypeCategory.Void)
-        {
-            cb.AppendLine($"Citizen.InvokeNative({string.Join(", ", args)})");
-        }
-        else
-        {
-            cb.AppendLine($"return Citizen.InvokeNative({string.Join(", ", args)})");
-        }
-
-        cb.Dedent();
-        cb.AppendLine("end");
-        cb.AppendLine();
-    }
-
-    private void GenerateFxManifest(NativeDatabase db, string outputPath, bool useClasses)
+    private void GenerateFxManifest(NativeDatabase db, string outputPath, GeneratorOptions options)
     {
         var cb = new CodeBuilder();
 
         cb.AppendLine("-- Auto-generated fxmanifest for RDR3 native wrappers");
-        cb.AppendLine("-- For struct support, you must include a DataView implementation:");
+        cb.AppendLine("-- For struct support, include a DataView implementation:");
         cb.AppendLine("-- https://github.com/femga/rdr3_discoveries/blob/master/AI/EVENTS/dataview_by_Gottfriedleibniz.lua");
         cb.AppendLine();
         cb.AppendLine("fx_version 'cerulean'");
@@ -174,28 +158,21 @@ public class LuaGenerator : ICodeGenerator
         cb.AppendLine("version '1.0.0'");
         cb.AppendLine();
 
-        // Collect all files
         var files = new List<string>();
 
         foreach (var enumName in db.Enums.Keys.OrderBy(k => k))
-        {
             files.Add($"enums/{enumName}.lua");
-        }
 
         foreach (var structName in db.Structs.Keys.OrderBy(k => k))
-        {
             files.Add($"structs/{structName}.lua");
-        }
 
-        if (useClasses)
+        if (options.UseClasses)
         {
             var classifier = new NativeClassifier();
             var classNatives = classifier.Classify(db);
 
             foreach (var className in classNatives.HandleClasses.Keys.OrderBy(k => k))
-            {
                 files.Add($"classes/{className}.lua");
-            }
 
             foreach (var nsName in classNatives.NamespaceClasses.Keys.OrderBy(k => k))
             {
@@ -203,12 +180,14 @@ public class LuaGenerator : ICodeGenerator
                 files.Add($"namespaces/{className}.lua");
             }
         }
+        else if (options.SingleFile)
+        {
+            files.Add("natives.lua");
+        }
         else
         {
             foreach (var ns in db.Namespaces.OrderBy(n => n.Name))
-            {
                 files.Add($"natives/{ns.Name}.lua");
-            }
         }
 
         cb.AppendLine("files {");
@@ -222,5 +201,32 @@ public class LuaGenerator : ICodeGenerator
         cb.AppendLine("}");
 
         File.WriteAllText(Path.Combine(outputPath, "fxmanifest.lua"), cb.ToString());
+    }
+
+    private static string GetFunctionName(string nativeName)
+    {
+        var trimmed = nativeName.TrimStart('_');
+        if (trimmed.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
+            return "N_" + trimmed;
+        return ToPascalCase(trimmed);
+    }
+
+    private static string ToPascalCase(string name)
+    {
+        var sb = new System.Text.StringBuilder();
+        bool capitalizeNext = true;
+        foreach (var c in name)
+        {
+            if (c == '_')
+                capitalizeNext = true;
+            else if (capitalizeNext)
+            {
+                sb.Append(char.ToUpperInvariant(c));
+                capitalizeNext = false;
+            }
+            else
+                sb.Append(char.ToLowerInvariant(c));
+        }
+        return sb.ToString();
     }
 }

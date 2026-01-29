@@ -1,4 +1,5 @@
 using NativeCodeGen.Core.Models;
+using NativeCodeGen.Core.TypeSystem;
 
 namespace NativeCodeGen.Core.Generation;
 
@@ -12,6 +13,11 @@ public interface ILanguageEmitter
     /// Gets the type mapper for this language.
     /// </summary>
     ITypeMapper TypeMapper { get; }
+
+    /// <summary>
+    /// Gets the language configuration for this emitter.
+    /// </summary>
+    LanguageConfig Config { get; }
 
     /// <summary>
     /// Creates a new doc builder for this language.
@@ -46,6 +52,11 @@ public interface ILanguageEmitter
     void EmitEnumEnd(CodeBuilder cb, string enumName);
 
     // === Class Generation ===
+
+    /// <summary>
+    /// Emits imports for handle types used in a namespace class.
+    /// </summary>
+    void EmitHandleImports(CodeBuilder cb, IEnumerable<string> handleTypes);
 
     /// <summary>
     /// Emits the start of a class definition.
@@ -92,7 +103,12 @@ public interface ILanguageEmitter
     /// <summary>
     /// Emits a native invoke call.
     /// </summary>
-    void EmitInvokeNative(CodeBuilder cb, string hash, List<string> args, TypeInfo returnType);
+    /// <param name="cb">The code builder.</param>
+    /// <param name="hash">The native hash.</param>
+    /// <param name="args">The invoke arguments.</param>
+    /// <param name="returnType">The native's declared return type.</param>
+    /// <param name="outputParamTypes">Types of output parameters (pointer types) that contribute to the return value.</param>
+    void EmitInvokeNative(CodeBuilder cb, string hash, List<string> args, TypeInfo returnType, List<TypeInfo> outputParamTypes);
 
     // === Struct Generation ===
 

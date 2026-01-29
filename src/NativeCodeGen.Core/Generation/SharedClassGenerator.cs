@@ -37,10 +37,16 @@ public class SharedClassGenerator
         return cb.ToString();
     }
 
-    public string GenerateNamespaceClass(string namespaceName, List<NativeDefinition> natives)
+    public string GenerateNamespaceClass(string namespaceName, List<NativeDefinition> natives, HashSet<string>? handleClassNames = null)
     {
         var cb = new CodeBuilder();
-        var className = NameConverter.NamespaceToClassName(namespaceName);
+        var className = handleClassNames != null
+            ? NameConverter.NamespaceToClassName(namespaceName, handleClassNames)
+            : NameConverter.NamespaceToClassName(namespaceName);
+
+        // Collect handle types used in this namespace class
+        var handleTypes = CollectHandleTypes(natives);
+        _emitter.EmitHandleImports(cb, handleTypes);
 
         _emitter.EmitClassStart(cb, className, null, ClassKind.Namespace);
 
@@ -52,6 +58,31 @@ public class SharedClassGenerator
         _emitter.EmitClassEnd(cb, className);
 
         return cb.ToString();
+    }
+
+    private HashSet<string> CollectHandleTypes(List<NativeDefinition> natives)
+    {
+        var handleTypes = new HashSet<string>();
+
+        foreach (var native in natives)
+        {
+            // Check return type
+            if (native.ReturnType.Category == TypeCategory.Handle)
+            {
+                handleTypes.Add(NativeClassifier.NormalizeHandleType(native.ReturnType.Name));
+            }
+
+            // Check parameters
+            foreach (var param in native.Parameters)
+            {
+                if (param.Type.Category == TypeCategory.Handle)
+                {
+                    handleTypes.Add(NativeClassifier.NormalizeHandleType(param.Type.Name));
+                }
+            }
+        }
+
+        return handleTypes;
     }
 
     private void GenerateStandardHandleClass(CodeBuilder cb, string className, string? baseClass, List<NativeDefinition> natives)
@@ -112,9 +143,11 @@ public class SharedClassGenerator
         }
 
         var inputParams = parameters.Where(p => !p.IsOutput).ToList();
+        var outputParams = parameters.Where(p => p.IsOutput).ToList();
+        var outputParamTypes = outputParams.Select(p => p.Type).ToList();
 
         // Generate doc
-        GenerateMethodDoc(cb, native, inputParams);
+        GenerateMethodDoc(cb, native, inputParams, outputParams);
 
         // Build method parameters
         var methodParams = inputParams.Select(p => new MethodParameter(
@@ -123,7 +156,7 @@ public class SharedClassGenerator
             p.HasDefaultValue
         )).ToList();
 
-        var returnType = _emitter.TypeMapper.MapType(native.ReturnType);
+        var returnType = _emitter.TypeMapper.BuildCombinedReturnType(native.ReturnType, outputParamTypes);
         _emitter.EmitMethodStart(cb, className, methodName, methodParams, returnType, MethodKind.Instance);
 
         // Build invoke args - pass ALL parameters (ArgumentBuilder handles output pointers)
@@ -135,10 +168,10 @@ public class SharedClassGenerator
 
         foreach (var param in parameters)
         {
-            args.Add(ArgumentBuilder.GetArgumentExpression(param, _emitter.TypeMapper));
+            args.Add(ArgumentBuilder.GetArgumentExpression(param, _emitter.TypeMapper, _emitter.Config));
         }
 
-        _emitter.EmitInvokeNative(cb, native.Hash, args, native.ReturnType);
+        _emitter.EmitInvokeNative(cb, native.Hash, args, native.ReturnType, outputParamTypes);
         _emitter.EmitMethodEnd(cb);
     }
 
@@ -148,8 +181,10 @@ public class SharedClassGenerator
 
         var parameters = native.Parameters.Skip(1).ToList();
         var inputParams = parameters.Where(p => !p.IsOutput).ToList();
+        var outputParams = parameters.Where(p => p.IsOutput).ToList();
+        var outputParamTypes = outputParams.Select(p => p.Type).ToList();
 
-        GenerateMethodDoc(cb, native, inputParams);
+        GenerateMethodDoc(cb, native, inputParams, outputParams);
 
         var methodParams = inputParams.Select(p => new MethodParameter(
             p.Name,
@@ -157,17 +192,17 @@ public class SharedClassGenerator
             p.HasDefaultValue
         )).ToList();
 
-        var returnType = _emitter.TypeMapper.MapType(native.ReturnType);
+        var returnType = _emitter.TypeMapper.BuildCombinedReturnType(native.ReturnType, outputParamTypes);
         _emitter.EmitMethodStart(cb, className, methodName, methodParams, returnType, MethodKind.Instance);
 
         // Build invoke args - pass ALL parameters (ArgumentBuilder handles output pointers)
         var args = new List<string> { firstArgExpr };
         foreach (var param in parameters)
         {
-            args.Add(ArgumentBuilder.GetArgumentExpression(param, _emitter.TypeMapper));
+            args.Add(ArgumentBuilder.GetArgumentExpression(param, _emitter.TypeMapper, _emitter.Config));
         }
 
-        _emitter.EmitInvokeNative(cb, native.Hash, args, native.ReturnType);
+        _emitter.EmitInvokeNative(cb, native.Hash, args, native.ReturnType, outputParamTypes);
         _emitter.EmitMethodEnd(cb);
     }
 
@@ -176,8 +211,10 @@ public class SharedClassGenerator
         var methodName = NameDeduplicator.DeduplicateForNamespace(native.Name, namespaceName, NamingConvention.CamelCase);
 
         var inputParams = native.Parameters.Where(p => !p.IsOutput).ToList();
+        var outputParams = native.Parameters.Where(p => p.IsOutput).ToList();
+        var outputParamTypes = outputParams.Select(p => p.Type).ToList();
 
-        GenerateMethodDoc(cb, native, inputParams);
+        GenerateMethodDoc(cb, native, inputParams, outputParams);
 
         var methodParams = inputParams.Select(p => new MethodParameter(
             p.Name,
@@ -185,21 +222,21 @@ public class SharedClassGenerator
             p.HasDefaultValue
         )).ToList();
 
-        var returnType = _emitter.TypeMapper.MapType(native.ReturnType);
+        var returnType = _emitter.TypeMapper.BuildCombinedReturnType(native.ReturnType, outputParamTypes);
         _emitter.EmitMethodStart(cb, className, methodName, methodParams, returnType, MethodKind.Static);
 
         // Build invoke args - pass ALL parameters (ArgumentBuilder handles output pointers)
         var args = new List<string>();
         foreach (var param in native.Parameters)
         {
-            args.Add(ArgumentBuilder.GetArgumentExpression(param, _emitter.TypeMapper));
+            args.Add(ArgumentBuilder.GetArgumentExpression(param, _emitter.TypeMapper, _emitter.Config));
         }
 
-        _emitter.EmitInvokeNative(cb, native.Hash, args, native.ReturnType);
+        _emitter.EmitInvokeNative(cb, native.Hash, args, native.ReturnType, outputParamTypes);
         _emitter.EmitMethodEnd(cb);
     }
 
-    private void GenerateMethodDoc(CodeBuilder cb, NativeDefinition native, List<NativeParameter> inputParams)
+    private void GenerateMethodDoc(CodeBuilder cb, NativeDefinition native, List<NativeParameter> inputParams, List<NativeParameter>? outputParams = null)
     {
         var doc = _emitter.CreateDocBuilder()
             .AddDescription(native.Description);
@@ -210,10 +247,34 @@ public class SharedClassGenerator
             doc.AddParam(param.Name, type, param.Description);
         }
 
-        if (native.ReturnType.Category != TypeCategory.Void)
+        var outputParamTypes = outputParams?.Select(p => p.Type).ToList() ?? new List<TypeInfo>();
+        var hasOutputParams = outputParamTypes.Count > 0;
+        var hasReturn = native.ReturnType.Category != TypeCategory.Void || hasOutputParams;
+
+        if (hasReturn)
         {
-            var returnType = _emitter.TypeMapper.GetInvokeReturnType(native.ReturnType);
-            doc.AddReturn(returnType, native.ReturnDescription);
+            var returnType = _emitter.TypeMapper.BuildCombinedReturnType(native.ReturnType, outputParamTypes);
+            var description = native.ReturnDescription ?? "";
+
+            // Add output param descriptions to return doc
+            if (hasOutputParams && outputParams != null)
+            {
+                var parts = new List<string>();
+                if (!string.IsNullOrWhiteSpace(native.ReturnDescription))
+                {
+                    parts.Add(native.ReturnDescription);
+                }
+                foreach (var outParam in outputParams)
+                {
+                    var paramDesc = !string.IsNullOrWhiteSpace(outParam.Description)
+                        ? $"{outParam.Name}: {outParam.Description}"
+                        : outParam.Name;
+                    parts.Add(paramDesc);
+                }
+                description = string.Join("; ", parts);
+            }
+
+            doc.AddReturn(returnType, description);
         }
 
         doc.Render(cb);

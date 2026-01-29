@@ -67,7 +67,6 @@ public static class DatabaseConverter
             ReturnType = native.ReturnType.ToString(),
             ReturnDescription = native.ReturnDescription,
             Aliases = native.Aliases.Count > 0 ? native.Aliases : null,
-            UsedEnums = native.UsedEnums.Count > 0 ? native.UsedEnums : null,
             RelatedExamples = native.RelatedExamples.Count > 0 ? native.RelatedExamples : null,
             ApiSet = native.ApiSet,
             Parameters = native.Parameters.Select(ConvertParameter).ToList()
@@ -76,19 +75,19 @@ public static class DatabaseConverter
 
     private static ExportParameter ConvertParameter(NativeParameter param)
     {
-        var attrs = new List<string>();
-        if (param.Attributes.IsThis) attrs.Add("@this");
-        if (param.Attributes.IsNotNull) attrs.Add("@notnull");
-        attrs.AddRange(param.Attributes.CustomAttributes);
+        var flags = ParamFlags.None;
+        if (param.IsOutput) flags |= ParamFlags.Output;
+        if (param.Attributes.IsThis) flags |= ParamFlags.This;
+        if (param.Attributes.IsNotNull) flags |= ParamFlags.NotNull;
+        if (param.Attributes.IsIn) flags |= ParamFlags.In;
 
         return new ExportParameter
         {
             Name = param.Name,
             Type = param.Type.ToString(),
             Description = param.Description,
-            Attributes = attrs.Count > 0 ? attrs : null,
-            DefaultValue = param.DefaultValue,
-            IsOutput = param.IsOutput
+            Flags = flags,
+            DefaultValue = param.DefaultValue
         };
     }
 
@@ -98,7 +97,6 @@ public static class DatabaseConverter
         {
             Name = enumDef.Name,
             BaseType = enumDef.BaseType,
-            UsedByNatives = enumDef.UsedByNatives.Count > 0 ? enumDef.UsedByNatives : null,
             Members = enumDef.Members.Select(m => new ExportEnumMember
             {
                 Name = m.Name,
@@ -120,20 +118,33 @@ public static class DatabaseConverter
                     Hash = u.Hash
                 }).ToList()
                 : null,
-            Fields = structDef.Fields.Select(f => new ExportStructField
-            {
-                Name = f.Name,
-                Type = f.Type.ToString(),
-                Comment = f.Comment,
-                IsInput = f.IsInput,
-                IsOutput = f.IsOutput,
-                ArraySize = f.ArraySize,
-                IsArray = f.IsArray,
-                IsNestedStruct = f.IsNestedStruct,
-                NestedStructName = f.NestedStructName,
-                IsPadding = f.IsPadding,
-                Alignment = f.Alignment
-            }).ToList()
+            Fields = structDef.Fields.Select(ConvertStructField).ToList()
+        };
+    }
+
+    private static ExportStructField ConvertStructField(StructField f)
+    {
+        var flags = FieldFlags.None;
+        if (f.IsPadding) flags |= FieldFlags.Padding;
+        else
+        {
+            // @in = setter only (input to native)
+            // @out = getter only (output from native)
+            // Both true = full access (default, no flag needed)
+            // Both false = padding (handled above)
+            if (f.IsInput && !f.IsOutput) flags |= FieldFlags.In;
+            if (f.IsOutput && !f.IsInput) flags |= FieldFlags.Out;
+        }
+
+        return new ExportStructField
+        {
+            Name = f.Name,
+            Type = f.Type.ToString(),
+            Comment = f.Comment,
+            Flags = flags,
+            ArraySize = f.ArraySize,
+            NestedStructName = f.IsNestedStruct ? f.NestedStructName : null,
+            Alignment = f.Alignment
         };
     }
 

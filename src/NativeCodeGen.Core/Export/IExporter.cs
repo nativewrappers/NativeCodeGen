@@ -10,6 +10,7 @@ public interface IExporter
 public class ExportOptions
 {
     public bool Raw { get; set; }
+    public bool SingleFile { get; set; }
     public bool Strict { get; set; }
     public HashSet<string>? Namespaces { get; set; }
     public bool IncludeEnums { get; set; } = true;

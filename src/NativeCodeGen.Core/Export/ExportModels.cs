@@ -9,6 +9,31 @@ namespace NativeCodeGen.Core.Export;
 /// Prefixed with "Export" to distinguish from parsing models.
 /// </summary>
 
+/// <summary>
+/// Bitflags for parameter attributes. Omitted from JSON when 0.
+/// </summary>
+[Flags]
+public enum ParamFlags
+{
+    None = 0,
+    Output = 1,     // Pointer output parameter (value returned via pointer)
+    This = 2,       // @this - use as instance method receiver
+    NotNull = 4,    // @notnull - string cannot be null
+    In = 8          // @in - input+output pointer (uses initialized value)
+}
+
+/// <summary>
+/// Bitflags for struct field attributes. Omitted from JSON when 0.
+/// </summary>
+[Flags]
+public enum FieldFlags
+{
+    None = 0,
+    In = 1,         // @in - setter only (input to native)
+    Out = 2,        // @out - getter only (output from native)
+    Padding = 4     // @padding - no accessors, reserves space
+}
+
 [ProtoContract]
 public partial class ExportDatabase
 {
@@ -64,9 +89,6 @@ public partial class ExportNative
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public List<string>? Aliases { get; set; }
 
-    [ProtoMember(9)]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public List<string>? UsedEnums { get; set; }
 
     [ProtoMember(10)]
     [JsonPropertyName("apiset")]
@@ -90,14 +112,12 @@ public partial class ExportParameter
     public string? Description { get; set; }
 
     [ProtoMember(4)]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public List<string>? Attributes { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public ParamFlags Flags { get; set; }
 
     [ProtoMember(5)]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? DefaultValue { get; set; }
-
-    [ProtoMember(6)]
-    public bool IsOutput { get; set; }
 }
 
 [ProtoContract]
@@ -113,9 +133,6 @@ public partial class ExportEnum
     [ProtoMember(3)]
     public List<ExportEnumMember> Members { get; set; } = new();
 
-    [ProtoMember(4)]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public List<string>? UsedByNatives { get; set; }
 }
 
 [ProtoContract]
@@ -156,30 +173,23 @@ public partial class ExportStructField
     public string Type { get; set; } = string.Empty;
 
     [ProtoMember(3)]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Comment { get; set; }
 
     [ProtoMember(4)]
-    public bool IsInput { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public FieldFlags Flags { get; set; }
 
     [ProtoMember(5)]
-    public bool IsOutput { get; set; }
-
-    [ProtoMember(6)]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public int ArraySize { get; set; }
 
-    [ProtoMember(7)]
-    public bool IsArray { get; set; }
-
-    [ProtoMember(8)]
-    public bool IsNestedStruct { get; set; }
-
-    [ProtoMember(9)]
+    [ProtoMember(6)]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? NestedStructName { get; set; }
 
-    [ProtoMember(10)]
-    public bool IsPadding { get; set; }
-
-    [ProtoMember(11)]
+    [ProtoMember(7)]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public int? Alignment { get; set; }
 }
 

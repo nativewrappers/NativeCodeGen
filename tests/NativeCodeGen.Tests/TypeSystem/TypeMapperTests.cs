@@ -16,58 +16,58 @@ public class TypeMapperTests
     [InlineData("f32", "number")]
     [InlineData("BOOL", "boolean")]
     [InlineData("bool", "boolean")]
-    public void MapToTypeScript_Primitives_ReturnsNumber(string typeName, string expected)
+    public void MapType_Primitives_ReturnsNumber(string typeName, string expected)
     {
         var typeInfo = TypeInfo.Parse(typeName);
-        var result = _mapper.MapToTypeScript(typeInfo);
+        var result = _mapper.MapType(typeInfo);
         Assert.Equal(expected, result);
     }
 
     [Fact]
-    public void MapToTypeScript_Void_ReturnsVoid()
+    public void MapType_Void_ReturnsVoid()
     {
         var typeInfo = TypeInfo.Parse("void");
-        var result = _mapper.MapToTypeScript(typeInfo);
+        var result = _mapper.MapType(typeInfo);
         Assert.Equal("void", result);
     }
 
     [Fact]
-    public void MapToTypeScript_Hash_ReturnsNumber()
+    public void MapType_Hash_ReturnsStringOrNumber()
     {
         var typeInfo = TypeInfo.Parse("Hash");
-        var result = _mapper.MapToTypeScript(typeInfo);
-        Assert.Equal("number", result);
+        var result = _mapper.MapType(typeInfo);
+        Assert.Equal("string | number", result);
     }
 
     [Fact]
-    public void MapToTypeScript_Vector3_ReturnsVector3()
+    public void MapType_Vector3_ReturnsVector3()
     {
         var typeInfo = TypeInfo.Parse("Vector3");
-        var result = _mapper.MapToTypeScript(typeInfo);
+        var result = _mapper.MapType(typeInfo);
         Assert.Equal("Vector3", result);
     }
 
     [Fact]
-    public void MapToTypeScript_Any_ReturnsAny()
+    public void MapType_Any_ReturnsAny()
     {
         var typeInfo = TypeInfo.Parse("Any");
-        var result = _mapper.MapToTypeScript(typeInfo);
+        var result = _mapper.MapType(typeInfo);
         Assert.Equal("any", result);
     }
 
     [Fact]
-    public void MapToTypeScript_NullableString_ReturnsUnion()
+    public void MapType_NullableString_ReturnsUnion()
     {
         var typeInfo = TypeInfo.Parse("char*");
-        var result = _mapper.MapToTypeScript(typeInfo, isNotNull: false);
+        var result = _mapper.MapType(typeInfo, isNotNull: false);
         Assert.Equal("string | null", result);
     }
 
     [Fact]
-    public void MapToTypeScript_NotNullString_ReturnsString()
+    public void MapType_NotNullString_ReturnsString()
     {
         var typeInfo = TypeInfo.Parse("char*");
-        var result = _mapper.MapToTypeScript(typeInfo, isNotNull: true);
+        var result = _mapper.MapType(typeInfo, isNotNull: true);
         Assert.Equal("string", result);
     }
 
@@ -78,26 +78,26 @@ public class TypeMapperTests
     [InlineData("Blip")]
     [InlineData("Cam")]
     [InlineData("Player")]
-    public void MapToTypeScript_HandleTypes_ReturnsSameName(string typeName)
+    public void MapType_HandleTypes_ReturnsSameName(string typeName)
     {
         var typeInfo = TypeInfo.Parse(typeName);
-        var result = _mapper.MapToTypeScript(typeInfo);
+        var result = _mapper.MapType(typeInfo);
         Assert.Equal(typeName, result);
     }
 
     [Fact]
-    public void MapToTypeScript_Object_ReturnsProp()
+    public void MapType_Object_ReturnsProp()
     {
         var typeInfo = TypeInfo.Parse("Object");
-        var result = _mapper.MapToTypeScript(typeInfo);
+        var result = _mapper.MapType(typeInfo);
         Assert.Equal("Prop", result);
     }
 
     [Fact]
-    public void MapToTypeScript_PointerType_ReturnsBaseType()
+    public void MapType_PointerType_ReturnsBaseType()
     {
         var typeInfo = TypeInfo.Parse("int*");
-        var result = _mapper.MapToTypeScript(typeInfo);
+        var result = _mapper.MapType(typeInfo);
         Assert.Equal("number", result);
     }
 
@@ -130,35 +130,35 @@ public class TypeMapperTests
     }
 
     [Fact]
-    public void GetCitizenResultType_Vector3_ReturnsResultAsVector()
+    public void GetResultMarker_Vector3_ReturnsShortAlias()
     {
         var typeInfo = TypeInfo.Parse("Vector3");
-        var result = _mapper.GetCitizenResultType(typeInfo);
-        Assert.Equal("Citizen.resultAsVector()", result);
+        var result = _mapper.GetResultMarker(typeInfo);
+        Assert.Equal("rav()", result);
     }
 
     [Fact]
-    public void GetCitizenResultType_String_ReturnsResultAsString()
+    public void GetResultMarker_String_ReturnsShortAlias()
     {
         var typeInfo = TypeInfo.Parse("char*");
-        var result = _mapper.GetCitizenResultType(typeInfo);
-        Assert.Equal("Citizen.resultAsString()", result);
+        var result = _mapper.GetResultMarker(typeInfo);
+        Assert.Equal("ras()", result);
     }
 
     [Fact]
-    public void GetCitizenResultType_Float_ReturnsResultAsFloat()
+    public void GetResultMarker_Float_ReturnsShortAlias()
     {
         var typeInfo = TypeInfo.Parse("float");
-        var result = _mapper.GetCitizenResultType(typeInfo);
-        Assert.Equal("Citizen.resultAsFloat()", result);
+        var result = _mapper.GetResultMarker(typeInfo);
+        Assert.Equal("raf()", result);
     }
 
     [Fact]
-    public void GetCitizenResultType_Handle_ReturnsResultAsInteger()
+    public void GetResultMarker_Handle_ReturnsShortAlias()
     {
         var typeInfo = TypeInfo.Parse("Entity");
-        var result = _mapper.GetCitizenResultType(typeInfo);
-        Assert.Equal("Citizen.resultAsInteger()", result);
+        var result = _mapper.GetResultMarker(typeInfo);
+        Assert.Equal("rai()", result);
     }
 
     [Fact]

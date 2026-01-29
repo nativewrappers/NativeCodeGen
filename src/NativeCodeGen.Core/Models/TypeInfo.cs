@@ -7,6 +7,11 @@ public class TypeInfo
     public TypeCategory Category { get; set; }
     public string? GenericParameter { get; set; }
 
+    /// <summary>
+    /// For enum types, the base type (e.g., "Hash", "int"). Null for non-enums.
+    /// </summary>
+    public string? EnumBaseType { get; set; }
+
     public static TypeInfo Parse(string typeString)
     {
         var trimmed = typeString.Trim();
@@ -19,6 +24,23 @@ public class TypeInfo
             IsPointer = isPointer,
             Category = CategorizeType(name, isPointer)
         };
+    }
+
+    /// <summary>
+    /// Resolves enum types using the provided lookup. Call after parsing to upgrade
+    /// Struct category to Enum if the type name matches a known enum.
+    /// </summary>
+    public void ResolveEnumType(Func<string, string?> enumBaseTypeLookup)
+    {
+        if (Category == TypeCategory.Struct)
+        {
+            var baseType = enumBaseTypeLookup(Name);
+            if (baseType != null)
+            {
+                Category = TypeCategory.Enum;
+                EnumBaseType = baseType;
+            }
+        }
     }
 
     private static TypeCategory CategorizeType(string name, bool isPointer)
@@ -83,5 +105,6 @@ public enum TypeCategory
     String,
     Vector3,
     Any,
-    Struct
+    Struct,
+    Enum
 }

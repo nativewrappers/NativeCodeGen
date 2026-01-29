@@ -1,5 +1,6 @@
 using NativeCodeGen.Core.Generation;
 using NativeCodeGen.Core.Models;
+using NativeCodeGen.Core.TypeSystem;
 
 namespace NativeCodeGen.Lua;
 
@@ -11,6 +12,7 @@ public class LuaEmitter : ILanguageEmitter
     private readonly LuaTypeMapper _typeMapper = new();
 
     public ITypeMapper TypeMapper => _typeMapper;
+    public LanguageConfig Config => LanguageConfig.Lua;
     public string FileExtension => ".lua";
     public string SelfReference => "self";
 
@@ -40,6 +42,11 @@ public class LuaEmitter : ILanguageEmitter
     }
 
     // === Class Generation ===
+
+    public void EmitHandleImports(CodeBuilder cb, IEnumerable<string> handleTypes)
+    {
+        // Lua doesn't need imports - uses globals
+    }
 
     public void EmitClassStart(CodeBuilder cb, string className, string? baseClass, ClassKind kind)
     {
@@ -167,7 +174,7 @@ public class LuaEmitter : ILanguageEmitter
         cb.AppendLine();
     }
 
-    public void EmitInvokeNative(CodeBuilder cb, string hash, List<string> args, TypeInfo returnType)
+    public void EmitInvokeNative(CodeBuilder cb, string hash, List<string> args, TypeInfo returnType, List<TypeInfo> outputParamTypes)
     {
         var allArgs = new List<string> { hash };
         allArgs.AddRange(args);
@@ -178,20 +185,80 @@ public class LuaEmitter : ILanguageEmitter
         }
 
         var invokeExpr = $"Citizen.InvokeNative({string.Join(", ", allArgs)})";
+        var hasOutputParams = outputParamTypes.Count > 0;
 
-        if (returnType.Category == TypeCategory.Void)
+        // If no output params, use the simple return logic
+        if (!hasOutputParams)
         {
-            cb.AppendLine(invokeExpr);
+            if (returnType.Category == TypeCategory.Void)
+            {
+                cb.AppendLine(invokeExpr);
+            }
+            else if (_typeMapper.IsHandleType(returnType))
+            {
+                var handleClass = NativeClassifier.NormalizeHandleType(returnType.Name);
+                cb.AppendLine($"return {handleClass}.fromHandle({invokeExpr})");
+            }
+            else
+            {
+                cb.AppendLine($"return {invokeExpr}");
+            }
+            return;
         }
-        else if (_typeMapper.IsHandleType(returnType))
+
+        // With output params, Lua returns multiple values
+        // Generate variable names for each return value
+        var varNames = new List<string>();
+        int varIndex = 0;
+
+        if (returnType.Category != TypeCategory.Void)
         {
-            var handleClass = NativeClassifier.NormalizeHandleType(returnType.Name);
-            cb.AppendLine($"return {handleClass}.fromHandle({invokeExpr})");
+            varNames.Add($"retVal");
+            varIndex++;
         }
-        else
+
+        for (int i = 0; i < outputParamTypes.Count; i++)
         {
-            cb.AppendLine($"return {invokeExpr}");
+            varNames.Add($"out{i + 1}");
         }
+
+        cb.AppendLine($"local {string.Join(", ", varNames)} = {invokeExpr}");
+
+        // Build the return with proper conversions
+        var returnParts = new List<string>();
+        int returnIndex = 0;
+
+        if (returnType.Category != TypeCategory.Void)
+        {
+            if (_typeMapper.IsHandleType(returnType))
+            {
+                var handleClass = NativeClassifier.NormalizeHandleType(returnType.Name);
+                returnParts.Add($"{handleClass}.fromHandle(retVal)");
+            }
+            else
+            {
+                returnParts.Add("retVal");
+            }
+            returnIndex++;
+        }
+
+        for (int i = 0; i < outputParamTypes.Count; i++)
+        {
+            var outputType = outputParamTypes[i];
+            var varName = $"out{i + 1}";
+
+            if (outputType.Category == TypeCategory.Handle)
+            {
+                var handleClass = NativeClassifier.NormalizeHandleType(outputType.Name);
+                returnParts.Add($"{handleClass}.fromHandle({varName})");
+            }
+            else
+            {
+                returnParts.Add(varName);
+            }
+        }
+
+        cb.AppendLine($"return {string.Join(", ", returnParts)}");
     }
 
     // === Struct Generation ===

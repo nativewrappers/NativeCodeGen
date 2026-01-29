@@ -59,8 +59,7 @@ public class ProtobufSerializationTests
                                     DefaultValue = "true"
                                 }
                             },
-                            Aliases = new List<string> { "0xA86D5F069399F44D" },
-                            UsedEnums = new List<string> { "eEntityType" }
+                            Aliases = new List<string> { "0xA86D5F069399F44D" }
                         }
                     }
                 }
@@ -85,7 +84,6 @@ public class ProtobufSerializationTests
         Assert.Equal("entity", native.Parameters[0].Name);
         Assert.Equal("true", native.Parameters[1].DefaultValue);
         Assert.Single(native.Aliases!);
-        Assert.Single(native.UsedEnums!);
     }
 
     [Fact]
@@ -103,8 +101,7 @@ public class ProtobufSerializationTests
                     {
                         new ExportEnumMember { Name = "WEAPON_PISTOL", Value = "0x1234" },
                         new ExportEnumMember { Name = "WEAPON_RIFLE", Value = "0x5678" }
-                    },
-                    UsedByNatives = new List<string> { "GET_WEAPON_NAME", "SET_WEAPON" }
+                    }
                 }
             }
         };
@@ -121,7 +118,6 @@ public class ProtobufSerializationTests
         Assert.Equal(2, enumDef.Members.Count);
         Assert.Equal("WEAPON_PISTOL", enumDef.Members[0].Name);
         Assert.Equal("0x1234", enumDef.Members[0].Value);
-        Assert.Equal(2, enumDef.UsedByNatives!.Count);
     }
 
     [Fact]
@@ -141,21 +137,19 @@ public class ProtobufSerializationTests
                         {
                             Name = "hash",
                             Type = "Hash",
-                            IsInput = true,
-                            IsOutput = false
+                            Flags = FieldFlags.In
                         },
                         new ExportStructField
                         {
                             Name = "data",
                             Type = "int",
-                            IsArray = true,
                             ArraySize = 4
                         },
                         new ExportStructField
                         {
                             Name = "_padding",
                             Type = "char",
-                            IsPadding = true,
+                            Flags = FieldFlags.Padding,
                             ArraySize = 4
                         }
                     },
@@ -177,10 +171,9 @@ public class ProtobufSerializationTests
         Assert.Equal("scrItemInfo", structDef.Name);
         Assert.Equal(8, structDef.DefaultAlignment);
         Assert.Equal(3, structDef.Fields.Count);
-        Assert.True(structDef.Fields[0].IsInput);
-        Assert.True(structDef.Fields[1].IsArray);
+        Assert.True(structDef.Fields[0].Flags.HasFlag(FieldFlags.In));
         Assert.Equal(4, structDef.Fields[1].ArraySize);
-        Assert.True(structDef.Fields[2].IsPadding);
+        Assert.True(structDef.Fields[2].Flags.HasFlag(FieldFlags.Padding));
         Assert.Single(structDef.UsedByNatives!);
     }
 
@@ -232,9 +225,9 @@ public class ProtobufSerializationTests
                             ReturnType = "BOOL",
                             Parameters = new List<ExportParameter>
                             {
-                                new ExportParameter { Name = "x", Type = "float", IsOutput = false },
-                                new ExportParameter { Name = "y", Type = "float", IsOutput = false },
-                                new ExportParameter { Name = "z", Type = "float*", IsOutput = true }
+                                new ExportParameter { Name = "x", Type = "float", Flags = ParamFlags.None },
+                                new ExportParameter { Name = "y", Type = "float", Flags = ParamFlags.None },
+                                new ExportParameter { Name = "z", Type = "float*", Flags = ParamFlags.Output }
                             }
                         }
                     }
@@ -248,13 +241,13 @@ public class ProtobufSerializationTests
         var deserialized = Serializer.Deserialize<ExportDatabase>(stream);
 
         var native = deserialized.Namespaces[0].Natives[0];
-        Assert.False(native.Parameters[0].IsOutput);
-        Assert.False(native.Parameters[1].IsOutput);
-        Assert.True(native.Parameters[2].IsOutput);
+        Assert.False(native.Parameters[0].Flags.HasFlag(ParamFlags.Output));
+        Assert.False(native.Parameters[1].Flags.HasFlag(ParamFlags.Output));
+        Assert.True(native.Parameters[2].Flags.HasFlag(ParamFlags.Output));
     }
 
     [Fact]
-    public void SerializeAndDeserialize_WithAttributes_RoundTrips()
+    public void SerializeAndDeserialize_WithFlags_RoundTrips()
     {
         var original = new ExportDatabase
         {
@@ -277,13 +270,13 @@ public class ProtobufSerializationTests
                                 {
                                     Name = "ped",
                                     Type = "Ped",
-                                    Attributes = new List<string> { "@this" }
+                                    Flags = ParamFlags.This
                                 },
                                 new ExportParameter
                                 {
                                     Name = "name",
                                     Type = "char*",
-                                    Attributes = new List<string> { "@notnull" }
+                                    Flags = ParamFlags.NotNull
                                 }
                             }
                         }
@@ -298,8 +291,8 @@ public class ProtobufSerializationTests
         var deserialized = Serializer.Deserialize<ExportDatabase>(stream);
 
         var native = deserialized.Namespaces[0].Natives[0];
-        Assert.Contains("@this", native.Parameters[0].Attributes!);
-        Assert.Contains("@notnull", native.Parameters[1].Attributes!);
+        Assert.True(native.Parameters[0].Flags.HasFlag(ParamFlags.This));
+        Assert.True(native.Parameters[1].Flags.HasFlag(ParamFlags.NotNull));
     }
 
     [Fact]
@@ -318,7 +311,6 @@ public class ProtobufSerializationTests
                         {
                             Name = "inner",
                             Type = "InnerStruct",
-                            IsNestedStruct = true,
                             NestedStructName = "InnerStruct"
                         }
                     }
@@ -332,7 +324,6 @@ public class ProtobufSerializationTests
         var deserialized = Serializer.Deserialize<ExportDatabase>(stream);
 
         var field = deserialized.Structs[0].Fields[0];
-        Assert.True(field.IsNestedStruct);
         Assert.Equal("InnerStruct", field.NestedStructName);
     }
 

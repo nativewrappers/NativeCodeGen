@@ -12,6 +12,7 @@ public class TypeScriptEmitter : ILanguageEmitter
     private readonly TypeMapper _typeMapper = new();
 
     public ITypeMapper TypeMapper => _typeMapper;
+    public LanguageConfig Config => LanguageConfig.TypeScript;
     public string FileExtension => ".ts";
     public string SelfReference => "this";
 
@@ -49,6 +50,24 @@ public class TypeScriptEmitter : ILanguageEmitter
     }
 
     // === Class Generation ===
+
+    public void EmitHandleImports(CodeBuilder cb, IEnumerable<string> handleTypes)
+    {
+        var types = handleTypes.OrderBy(t => t).ToList();
+        if (types.Count == 0) return;
+
+        foreach (var handleType in types)
+        {
+            cb.AppendLine($"import {{ {handleType} }} from '../classes/{handleType}';");
+        }
+    }
+
+    public void EmitNativeAliases(CodeBuilder cb)
+    {
+        cb.AppendLine();
+        cb.AppendLine("// Native invoke aliases");
+        RawNativeBuilder.EmitTypeScriptAliases(cb);
+    }
 
     public void EmitClassStart(CodeBuilder cb, string className, string? baseClass, ClassKind kind)
     {
@@ -186,7 +205,7 @@ public class TypeScriptEmitter : ILanguageEmitter
         cb.AppendLine();
     }
 
-    public void EmitInvokeNative(CodeBuilder cb, string hash, List<string> args, TypeInfo returnType)
+    public void EmitInvokeNative(CodeBuilder cb, string hash, List<string> args, TypeInfo returnType, List<TypeInfo> outputParamTypes)
     {
         var allArgs = new List<string> { $"'{hash}'" };
         allArgs.AddRange(args);
@@ -196,26 +215,107 @@ public class TypeScriptEmitter : ILanguageEmitter
             allArgs.Add(_typeMapper.GetResultMarker(returnType));
         }
 
-        var invokeType = _typeMapper.GetInvokeReturnType(returnType);
-        var invokeExpr = $"Citizen.invokeNative<{invokeType}>({string.Join(", ", allArgs)})";
+        var hasOutputParams = outputParamTypes.Count > 0;
+        var invokeType = hasOutputParams
+            ? _typeMapper.GetInvokeCombinedReturnType(returnType, outputParamTypes.Select(p => p))
+            : _typeMapper.GetInvokeReturnType(returnType);
 
-        if (_typeMapper.IsVector3(returnType))
+        var invokeExpr = $"inv<{invokeType}>({string.Join(", ", allArgs)})";
+
+        // If no output params, use the simple return logic
+        if (!hasOutputParams)
         {
-            invokeExpr = $"Vector3.fromArray({invokeExpr})";
-        }
-        else if (_typeMapper.IsHandleType(returnType))
-        {
-            var handleClass = NativeClassifier.NormalizeHandleType(returnType.Name);
-            invokeExpr = $"{handleClass}.fromHandle({invokeExpr})";
+            if (_typeMapper.IsVector3(returnType))
+            {
+                invokeExpr = $"Vector3.fromArray({invokeExpr})";
+            }
+            else if (_typeMapper.IsHandleType(returnType))
+            {
+                var handleClass = NativeClassifier.NormalizeHandleType(returnType.Name);
+                invokeExpr = $"{handleClass}.fromHandle({invokeExpr})";
+            }
+            else if (returnType.Category == TypeCategory.Hash)
+            {
+                invokeExpr = $"({invokeExpr}) & 0xFFFFFFFF";
+            }
+
+            if (returnType.Category == TypeCategory.Void)
+            {
+                cb.AppendLine($"{invokeExpr};");
+            }
+            else
+            {
+                cb.AppendLine($"return {invokeExpr};");
+            }
+            return;
         }
 
-        if (returnType.Category == TypeCategory.Void)
+        // With output params, we need to return a tuple
+        // The invoke returns [retValue?, outParam1, outParam2, ...]
+        cb.AppendLine($"const result = {invokeExpr};");
+
+        // Build the return tuple with proper type conversions
+        var returnParts = new List<string>();
+        int resultIndex = 0;
+
+        // Add native return value if not void
+        if (returnType.Category != TypeCategory.Void)
         {
-            cb.AppendLine($"{invokeExpr};");
+            if (_typeMapper.IsVector3(returnType))
+            {
+                returnParts.Add($"Vector3.fromArray(result[{resultIndex}])");
+            }
+            else if (_typeMapper.IsHandleType(returnType))
+            {
+                var handleClass = NativeClassifier.NormalizeHandleType(returnType.Name);
+                returnParts.Add($"{handleClass}.fromHandle(result[{resultIndex}])");
+            }
+            else if (returnType.Name is "BOOL" or "bool")
+            {
+                returnParts.Add($"!!result[{resultIndex}]");
+            }
+            else if (returnType.Category == TypeCategory.Hash)
+            {
+                returnParts.Add($"result[{resultIndex}] & 0xFFFFFFFF");
+            }
+            else
+            {
+                returnParts.Add($"result[{resultIndex}]");
+            }
+            resultIndex++;
+        }
+
+        // Add each output param with conversion
+        foreach (var outputType in outputParamTypes)
+        {
+            if (outputType.Category == TypeCategory.Vector3 || outputType.Name == "Vector3")
+            {
+                returnParts.Add($"Vector3.fromArray(result[{resultIndex}])");
+            }
+            else if (outputType.Category == TypeCategory.Handle)
+            {
+                var handleClass = NativeClassifier.NormalizeHandleType(outputType.Name);
+                returnParts.Add($"{handleClass}.fromHandle(result[{resultIndex}])");
+            }
+            else if (outputType.Name is "BOOL" or "bool")
+            {
+                returnParts.Add($"!!result[{resultIndex}]");
+            }
+            else
+            {
+                returnParts.Add($"result[{resultIndex}]");
+            }
+            resultIndex++;
+        }
+
+        // Single output with void return - return directly, not as tuple
+        if (returnParts.Count == 1)
+        {
+            cb.AppendLine($"return {returnParts[0]};");
         }
         else
         {
-            cb.AppendLine($"return {invokeExpr};");
+            cb.AppendLine($"return [{string.Join(", ", returnParts)}];");
         }
     }
 

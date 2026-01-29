@@ -204,10 +204,16 @@ public class MdxParser
             }
         }
 
-        // Join description parts
+        // Join description parts and clean up embedded references
         if (descriptionParts.Count > 0)
         {
-            native.Description = string.Join("\n\n", descriptionParts);
+            native.Description = _componentParser.NormalizeDescription(string.Join("\n\n", descriptionParts));
+        }
+
+        // Clean return description
+        if (!string.IsNullOrEmpty(native.ReturnDescription))
+        {
+            native.ReturnDescription = _componentParser.NormalizeDescription(native.ReturnDescription);
         }
 
         // Also scan the entire markdown content for SharedExamples (may be in Examples section)
@@ -218,12 +224,12 @@ public class MdxParser
                 native.RelatedExamples.Add(exampleRef.Name);
         }
 
-        // Apply parameter descriptions
+        // Apply parameter descriptions (cleaned)
         foreach (var param in native.Parameters)
         {
             if (parameterDescriptions.TryGetValue(param.Name, out var desc))
             {
-                param.Description = desc;
+                param.Description = _componentParser.NormalizeDescription(desc);
             }
         }
 

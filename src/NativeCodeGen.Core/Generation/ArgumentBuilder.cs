@@ -1,4 +1,5 @@
 using NativeCodeGen.Core.Models;
+using NativeCodeGen.Core.TypeSystem;
 
 namespace NativeCodeGen.Core.Generation;
 
@@ -12,12 +13,17 @@ public static class ArgumentBuilder
     /// - Regular inputs: pass their value directly
     /// - Vector3: expand to x, y, z
     /// - Structs: pass .buffer
-    /// - Handles: pass .handle
+    /// - Handles: pass .handle (unless rawMode)
     /// - Output-only pointers: pass pointer placeholder
     /// - Input+output pointers (@in): pass initialized pointer
     /// </summary>
-    public static string GetArgumentExpression(NativeParameter param, ITypeMapper typeMapper)
+    public static string GetArgumentExpression(NativeParameter param, ITypeMapper typeMapper, LanguageConfig config, bool rawMode = false)
     {
+        var f = config.FloatWrapperAlias;
+        var h = config.HashWrapperAlias;
+        var useFloat = config.UseFloatWrapper;
+        var useHash = config.UseHashWrapper;
+
         // Output-only pointer (int*, float*, Vector3* without @in)
         if (param.IsOutput)
         {
@@ -28,15 +34,18 @@ public static class ArgumentBuilder
         if (param.Type.IsPointer && param.Attributes.IsIn)
         {
             var format = typeMapper.GetInitializedPointerFormat(param.Type);
-            // Handle types need to pass .handle
-            var value = typeMapper.IsHandleType(param.Type) ? $"{param.Name}.handle" : param.Name;
+            // Handle types need to pass .handle (unless raw mode)
+            var value = typeMapper.IsHandleType(param.Type) && !rawMode ? $"{param.Name}.handle" : param.Name;
             return string.Format(format, value);
         }
 
-        // Vector3 expansion (non-pointer Vector3)
+        // Vector3 expansion (non-pointer Vector3) - components are floats
         if (typeMapper.IsVector3(param.Type) && !param.Type.IsPointer)
         {
-            return $"{param.Name}.x, {param.Name}.y, {param.Name}.z";
+            if (useFloat)
+                return $"{f}({param.Name}.x), {f}({param.Name}.y), {f}({param.Name}.z)";
+            else
+                return $"{param.Name}.x, {param.Name}.y, {param.Name}.z";
         }
 
         // Struct buffer
@@ -45,10 +54,28 @@ public static class ArgumentBuilder
             return $"{param.Name}.buffer";
         }
 
-        // Handle types
-        if (typeMapper.IsHandleType(param.Type))
+        // Handle types - in raw mode, just pass the number directly
+        if (typeMapper.IsHandleType(param.Type) && !rawMode)
         {
             return $"{param.Name}.handle";
+        }
+
+        // Hash type - wrap with h() for string conversion and unsigned
+        if (param.Type.Category == TypeCategory.Hash || param.Type.Name == "Hash")
+        {
+            if (useHash)
+                return $"{h}({param.Name})";
+            else
+                return param.Name;
+        }
+
+        // Float type - wrap with f() to prevent bundler optimization
+        if (param.Type.Name is "float" or "f32" or "f64" or "double")
+        {
+            if (useFloat)
+                return $"{f}({param.Name})";
+            else
+                return param.Name;
         }
 
         // Regular value
@@ -63,13 +90,15 @@ public static class ArgumentBuilder
         NativeDefinition native,
         IEnumerable<NativeParameter> allParams,
         ITypeMapper typeMapper,
-        string hashFormat = "'{0}'")
+        LanguageConfig config,
+        string hashFormat = "'{0}'",
+        bool rawMode = false)
     {
         var args = new List<string> { string.Format(hashFormat, native.Hash) };
 
         foreach (var param in allParams)
         {
-            args.Add(GetArgumentExpression(param, typeMapper));
+            args.Add(GetArgumentExpression(param, typeMapper, config, rawMode));
         }
 
         if (typeMapper.NeedsResultMarker(native.ReturnType))
@@ -89,13 +118,14 @@ public static class ArgumentBuilder
         string firstArg,
         IEnumerable<NativeParameter> remainingParams,
         ITypeMapper typeMapper,
+        LanguageConfig config,
         string hashFormat = "'{0}'")
     {
         var args = new List<string> { string.Format(hashFormat, native.Hash), firstArg };
 
         foreach (var param in remainingParams)
         {
-            args.Add(GetArgumentExpression(param, typeMapper));
+            args.Add(GetArgumentExpression(param, typeMapper, config));
         }
 
         if (typeMapper.NeedsResultMarker(native.ReturnType))

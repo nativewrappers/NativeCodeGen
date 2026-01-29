@@ -1,3 +1,5 @@
+using System.Text.RegularExpressions;
+
 namespace NativeCodeGen.Core.Parsing;
 
 public class EmbeddedEnumRef
@@ -10,36 +12,68 @@ public class SharedExampleRef
     public string Name { get; set; } = string.Empty;
 }
 
-public class MdxComponentParser
+public class StructRef
 {
+    public string Name { get; set; } = string.Empty;
+}
+
+public class NativeRef
+{
+    public string Name { get; set; } = string.Empty;
+}
+
+public partial class MdxComponentParser
+{
+    // Attribute format patterns: [type: name]
+    [GeneratedRegex(@"\[enum:\s*[""']?(\w+)[""']?\]", RegexOptions.IgnoreCase)]
+    private static partial Regex EnumAttributeRegex();
+
+    [GeneratedRegex(@"\[example:\s*[""']?(\w+)[""']?\]", RegexOptions.IgnoreCase)]
+    private static partial Regex ExampleAttributeRegex();
+
+    [GeneratedRegex(@"\[struct:\s*[""']?(\w+)[""']?\]", RegexOptions.IgnoreCase)]
+    private static partial Regex StructAttributeRegex();
+
+    [GeneratedRegex(@"\[native:\s*[""']?([\w]+)[""']?\]", RegexOptions.IgnoreCase)]
+    private static partial Regex NativeAttributeRegex();
+
+    /// <summary>
+    /// Normalizes description text by cleaning up whitespace.
+    /// </summary>
+    public string NormalizeDescription(string content)
+    {
+        if (string.IsNullOrEmpty(content))
+            return content;
+
+        // Clean up double spaces
+        var result = Regex.Replace(content, @"\s{2,}", " ");
+
+        return result.Trim();
+    }
+
     public List<EmbeddedEnumRef> ParseEmbeddedEnums(string content)
     {
         var results = new List<EmbeddedEnumRef>();
-        var index = 0;
 
-        while (index < content.Length)
+        foreach (Match match in EnumAttributeRegex().Matches(content))
         {
-            // Find <EmbeddedEnum
-            var tagStart = content.IndexOf("<EmbeddedEnum", index, StringComparison.OrdinalIgnoreCase);
-            if (tagStart == -1)
-                break;
-
-            // Find the closing />
-            var tagEnd = content.IndexOf("/>", tagStart);
-            if (tagEnd == -1)
-                break;
-
-            // Extract the tag content
-            var tagContent = content[tagStart..(tagEnd + 2)];
-
-            // Parse name attribute
-            var name = ExtractAttribute(tagContent, "name");
-            if (name != null)
-            {
+            var name = match.Groups[1].Value;
+            if (!results.Any(r => r.Name == name))
                 results.Add(new EmbeddedEnumRef { Name = name });
-            }
+        }
 
-            index = tagEnd + 2;
+        return results;
+    }
+
+    public List<StructRef> ParseStructRefs(string content)
+    {
+        var results = new List<StructRef>();
+
+        foreach (Match match in StructAttributeRegex().Matches(content))
+        {
+            var name = match.Groups[1].Value;
+            if (!results.Any(r => r.Name == name))
+                results.Add(new StructRef { Name = name });
         }
 
         return results;
@@ -48,104 +82,28 @@ public class MdxComponentParser
     public List<SharedExampleRef> ParseSharedExamples(string content)
     {
         var results = new List<SharedExampleRef>();
-        var index = 0;
 
-        while (index < content.Length)
+        foreach (Match match in ExampleAttributeRegex().Matches(content))
         {
-            // Find <SharedExample
-            var tagStart = content.IndexOf("<SharedExample", index, StringComparison.OrdinalIgnoreCase);
-            if (tagStart == -1)
-                break;
-
-            // Find the closing />
-            var tagEnd = content.IndexOf("/>", tagStart);
-            if (tagEnd == -1)
-                break;
-
-            // Extract the tag content
-            var tagContent = content[tagStart..(tagEnd + 2)];
-
-            // Parse name attribute
-            var name = ExtractAttribute(tagContent, "name");
-            if (name != null)
-            {
+            var name = match.Groups[1].Value;
+            if (!results.Any(r => r.Name == name))
                 results.Add(new SharedExampleRef { Name = name });
-            }
-
-            index = tagEnd + 2;
         }
 
         return results;
     }
 
-    private static string? ExtractAttribute(string tag, string attributeName)
+    public List<NativeRef> ParseNativeRefs(string content)
     {
-        // Find name= or name =
-        var attrIndex = FindAttribute(tag, attributeName);
-        if (attrIndex == -1)
-            return null;
+        var results = new List<NativeRef>();
 
-        // Find the = sign
-        var equalsIndex = tag.IndexOf('=', attrIndex);
-        if (equalsIndex == -1)
-            return null;
-
-        // Skip whitespace after =
-        var valueStart = equalsIndex + 1;
-        while (valueStart < tag.Length && char.IsWhiteSpace(tag[valueStart]))
+        foreach (Match match in NativeAttributeRegex().Matches(content))
         {
-            valueStart++;
+            var name = match.Groups[1].Value;
+            if (!results.Any(r => r.Name == name))
+                results.Add(new NativeRef { Name = name });
         }
 
-        if (valueStart >= tag.Length)
-            return null;
-
-        // Check for quote character
-        var quote = tag[valueStart];
-        if (quote != '"' && quote != '\'')
-            return null;
-
-        valueStart++;
-
-        // Find closing quote
-        var valueEnd = tag.IndexOf(quote, valueStart);
-        if (valueEnd == -1)
-            return null;
-
-        return tag[valueStart..valueEnd];
-    }
-
-    private static int FindAttribute(string tag, string attributeName)
-    {
-        var index = 0;
-        while (index < tag.Length)
-        {
-            var found = tag.IndexOf(attributeName, index, StringComparison.OrdinalIgnoreCase);
-            if (found == -1)
-                return -1;
-
-            // Check that this is a standalone attribute name (not part of another word)
-            var beforeOk = found == 0 || !char.IsLetterOrDigit(tag[found - 1]);
-            var afterOk = found + attributeName.Length >= tag.Length ||
-                          !char.IsLetterOrDigit(tag[found + attributeName.Length]);
-
-            if (beforeOk && afterOk)
-            {
-                // Skip whitespace to find =
-                var checkIndex = found + attributeName.Length;
-                while (checkIndex < tag.Length && char.IsWhiteSpace(tag[checkIndex]))
-                {
-                    checkIndex++;
-                }
-                if (checkIndex < tag.Length && tag[checkIndex] == '=')
-                {
-                    return found;
-                }
-            }
-
-            index = found + 1;
-        }
-
-        return -1;
+        return results;
     }
 }

@@ -131,4 +131,20 @@ public static class NameConverter
     {
         return ToPascalCase(ns.ToLowerInvariant());
     }
+
+    /// <summary>
+    /// Converts a namespace name to a class/module name, avoiding conflicts with handle class names.
+    /// </summary>
+    public static string NamespaceToClassName(string ns, HashSet<string> handleClassNames)
+    {
+        var baseName = ToPascalCase(ns.ToLowerInvariant());
+
+        // If this conflicts with a handle class, add "Statics" suffix
+        if (handleClassNames.Contains(baseName))
+        {
+            return baseName + "Statics";
+        }
+
+        return baseName;
+    }
 }

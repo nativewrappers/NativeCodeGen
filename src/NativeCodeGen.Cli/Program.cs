@@ -40,7 +40,12 @@ class Program
 
         var rawOption = new Option<bool>(
             aliases: new[] { "--raw" },
-            description: "Generate raw native declarations without wrapper classes (typescript only)",
+            description: "Generate raw native declarations without wrapper classes",
+            getDefaultValue: () => false);
+
+        var singleFileOption = new Option<bool>(
+            aliases: new[] { "--single-file" },
+            description: "Generate all natives in a single file (requires --raw)",
             getDefaultValue: () => false);
 
         var strictOption = new Option<bool>(
@@ -53,12 +58,13 @@ class Program
         generateCommand.AddOption(formatOption);
         generateCommand.AddOption(namespacesOption);
         generateCommand.AddOption(rawOption);
+        generateCommand.AddOption(singleFileOption);
         generateCommand.AddOption(strictOption);
 
-        generateCommand.SetHandler(async (input, output, format, namespaces, raw, strict) =>
+        generateCommand.SetHandler(async (input, output, format, namespaces, raw, singleFile, strict) =>
         {
-            await Generate(input, output, format, namespaces, raw, strict);
-        }, inputOption, outputOption, formatOption, namespacesOption, rawOption, strictOption);
+            await Generate(input, output, format, namespaces, raw, singleFile, strict);
+        }, inputOption, outputOption, formatOption, namespacesOption, rawOption, singleFileOption, strictOption);
 
         // Validate command
         var validateCommand = new Command("validate", "Validate MDX files without generating output");
@@ -87,11 +93,18 @@ class Program
         return await rootCommand.InvokeAsync(args);
     }
 
-    static async Task Generate(string input, string output, string format, string[]? namespaces, bool raw, bool strict)
+    static async Task Generate(string input, string output, string format, string[]? namespaces, bool raw, bool singleFile, bool strict)
     {
         Console.WriteLine($"Generating {format} output...");
         Console.WriteLine($"Input: {input}");
         Console.WriteLine($"Output: {output}");
+
+        if (singleFile && !raw)
+        {
+            Console.Error.WriteLine("Error: --single-file requires --raw");
+            Environment.ExitCode = 1;
+            return;
+        }
 
         var (db, errors, warnings) = await ParseAllFiles(input);
 
@@ -126,6 +139,7 @@ class Program
         var options = new ExportOptions
         {
             Raw = raw,
+            SingleFile = singleFile,
             Strict = strict,
             Namespaces = namespaces?.Length > 0
                 ? new HashSet<string>(namespaces.SelectMany(n => n.Split(',')), StringComparer.OrdinalIgnoreCase)
@@ -225,21 +239,14 @@ class Program
 
                 if (result.Value != null)
                 {
-                    allNatives.Add(result.Value);
-
-                    foreach (var enumName in result.Value.UsedEnums)
+                    // Resolve enum types for parameters and return type
+                    foreach (var param in result.Value.Parameters)
                     {
-                        if (!enumRegistry.Contains(enumName))
-                        {
-                            allWarnings.Add(new ParseWarning
-                            {
-                                FilePath = file,
-                                Line = 1,
-                                Column = 1,
-                                Message = $"Referenced enum '{enumName}' not found in registry"
-                            });
-                        }
+                        param.Type.ResolveEnumType(enumRegistry.GetBaseType);
                     }
+                    result.Value.ReturnType.ResolveEnumType(enumRegistry.GetBaseType);
+
+                    allNatives.Add(result.Value);
                 }
 
                 Interlocked.Increment(ref processedCount);
@@ -260,18 +267,6 @@ class Program
         var namespaceDict = allNatives
             .GroupBy(n => n.Namespace, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(g => g.Key, g => g.ToList(), StringComparer.OrdinalIgnoreCase);
-
-        // Track enum usage (single-threaded, after parallel processing)
-        foreach (var native in allNatives)
-        {
-            foreach (var enumName in native.UsedEnums)
-            {
-                if (enumRegistry.Contains(enumName))
-                {
-                    enumRegistry.TrackUsage(enumName, native.Hash);
-                }
-            }
-        }
 
         // Track struct usage - check parameter types for struct references
         var structDict = structRegistry.GetAllStructs();
@@ -298,7 +293,6 @@ class Program
             .OrderBy(n => n.Name)
             .ToList();
 
-        // Update enums with usage tracking
         db.Enums = enumRegistry.GetAllEnums();
 
         return (db, allErrors.ToList(), allWarnings.ToList());

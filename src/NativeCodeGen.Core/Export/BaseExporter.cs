@@ -24,7 +24,12 @@ public abstract class BaseExporter : IExporter
             };
         }
 
-        Generator.Generate(db, outputPath, !options.Raw);
+        var generatorOptions = new GeneratorOptions
+        {
+            UseClasses = !options.Raw,
+            SingleFile = options.SingleFile
+        };
+        Generator.Generate(db, outputPath, generatorOptions);
 
         // Output any warnings from code generation
         foreach (var warning in Generator.Warnings)

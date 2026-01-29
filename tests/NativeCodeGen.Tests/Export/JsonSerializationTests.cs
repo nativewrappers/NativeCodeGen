@@ -119,7 +119,6 @@ public class JsonSerializationTests
 
         Assert.DoesNotContain("\"description\":", json);
         Assert.DoesNotContain("\"aliases\":", json);
-        Assert.DoesNotContain("\"usedEnums\":", json);
         Assert.DoesNotContain("\"relatedExamples\":", json);
     }
 
@@ -132,14 +131,12 @@ public class JsonSerializationTests
             Hash = "0x1234",
             Namespace = "TEST",
             ReturnType = "void",
-            Aliases = null, // Should be omitted
-            UsedEnums = null // Should be omitted
+            Aliases = null // Should be omitted
         };
 
         var json = JsonSerializer.Serialize(native, _jsonOptions);
 
         Assert.DoesNotContain("\"aliases\":", json);
-        Assert.DoesNotContain("\"usedEnums\":", json);
     }
 
     [Fact]
@@ -159,20 +156,20 @@ public class JsonSerializationTests
     }
 
     [Fact]
-    public void Serialize_Parameter_WithAttributes()
+    public void Serialize_Parameter_WithFlags()
     {
         var param = new ExportParameter
         {
             Name = "ped",
             Type = "Ped",
-            Attributes = new List<string> { "@this", "@notnull" }
+            Flags = ParamFlags.This | ParamFlags.NotNull
         };
 
         var json = JsonSerializer.Serialize(param, _jsonOptions);
 
-        Assert.Contains("\"attributes\":", json);
-        Assert.Contains("@this", json);
-        Assert.Contains("@notnull", json);
+        Assert.Contains("\"flags\":", json);
+        // Flags are serialized as integer (6 = This | NotNull = 2 | 4)
+        Assert.Contains("6", json);
     }
 
     [Fact]
@@ -182,17 +179,16 @@ public class JsonSerializationTests
         {
             Name = "data",
             Type = "int",
-            IsArray = true,
             ArraySize = 4
         };
 
         var json = JsonSerializer.Serialize(field, _jsonOptions);
 
-        // Check both serialized correctly
+        // Check arraySize is serialized
         Assert.Contains("\"arraySize\":", json);
         Assert.Contains("4", json);
-        // isArray might be true or serialized differently based on default value handling
-        Assert.Contains("\"isArray\":", json);
+        // flags should be omitted when 0 (None)
+        Assert.DoesNotContain("\"flags\":", json);
     }
 
     [Fact]

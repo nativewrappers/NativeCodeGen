@@ -2,7 +2,6 @@ using NativeCodeGen.Core.Export;
 using NativeCodeGen.Core.Generation;
 using NativeCodeGen.Core.Models;
 using NativeCodeGen.Core.Parsing;
-using NativeCodeGen.Core.TypeSystem;
 using NativeCodeGen.Core.Utilities;
 
 namespace NativeCodeGen.TypeScript.Generation;
@@ -24,13 +23,17 @@ public class TypeScriptGenerator : ICodeGenerator
         _enumGenerator = new SharedEnumGenerator(_emitter);
     }
 
-    public void Generate(NativeDatabase db, string outputPath, bool useClasses)
+    public void Generate(NativeDatabase db, string outputPath, GeneratorOptions options)
     {
         Directory.CreateDirectory(outputPath);
 
-        if (useClasses)
+        if (options.UseClasses)
         {
             GenerateClassOutput(db, outputPath);
+        }
+        else if (options.SingleFile)
+        {
+            GenerateSingleFileOutput(db, outputPath);
         }
         else
         {
@@ -45,13 +48,87 @@ public class TypeScriptGenerator : ICodeGenerator
         var nativesDir = Path.Combine(outputPath, "natives");
         Directory.CreateDirectory(nativesDir);
 
+        var builder = new RawNativeBuilder(Language.TypeScript, _emitter.TypeMapper);
+
         foreach (var ns in db.Namespaces)
         {
-            var content = GenerateRawNamespace(ns);
-            File.WriteAllText(Path.Combine(nativesDir, $"{ns.Name}.ts"), content);
+            builder.Clear();
+            builder.EmitImports();
+
+            foreach (var native in ns.Natives)
+            {
+                builder.EmitFunction(native, BindingStyle.Export);
+            }
+
+            File.WriteAllText(Path.Combine(nativesDir, $"{ns.Name}.ts"), builder.ToString());
         }
 
         GenerateRawIndex(db, outputPath);
+    }
+
+    private void GenerateSingleFileOutput(NativeDatabase db, string outputPath)
+    {
+        GenerateCommonFiles(db, outputPath);
+
+        // Build a map of function names to detect duplicates
+        var nameCount = new Dictionary<string, int>();
+        foreach (var ns in db.Namespaces)
+        {
+            foreach (var native in ns.Natives)
+            {
+                var name = GetFunctionName(native.Name);
+                nameCount[name] = nameCount.GetValueOrDefault(name, 0) + 1;
+            }
+        }
+
+        var builder = new RawNativeBuilder(Language.TypeScript, _emitter.TypeMapper);
+        builder.EmitImports(singleFile: true);
+
+        foreach (var ns in db.Namespaces.OrderBy(n => n.Name))
+        {
+            foreach (var native in ns.Natives)
+            {
+                var baseName = GetFunctionName(native.Name);
+                var finalName = nameCount.TryGetValue(baseName, out var count) && count > 1
+                    ? ToPascalCase(ns.Name.ToLowerInvariant()) + baseName
+                    : baseName;
+
+                builder.EmitFunction(native, BindingStyle.Global, nameOverride: finalName);
+            }
+        }
+
+        File.WriteAllText(Path.Combine(outputPath, "natives.ts"), builder.ToString());
+        GenerateSingleFileIndex(db, outputPath);
+    }
+
+    private void GenerateSingleFileIndex(NativeDatabase db, string outputPath)
+    {
+        var cb = new CodeBuilder();
+
+        cb.AppendLine("// Types");
+        cb.AppendLine("export { IHandle } from './types/IHandle';");
+        cb.AppendLine("export { Vector3 } from './types/Vector3';");
+        cb.AppendLine("export { BufferedClass } from './types/BufferedClass';");
+        cb.AppendLine();
+
+        cb.AppendLine("// Enums");
+        foreach (var enumName in db.Enums.Keys.OrderBy(k => k))
+        {
+            cb.AppendLine($"export {{ {enumName} }} from './enums/{enumName}';");
+        }
+        cb.AppendLine();
+
+        cb.AppendLine("// Structs");
+        foreach (var structName in db.Structs.Keys.OrderBy(k => k))
+        {
+            cb.AppendLine($"export {{ {structName} }} from './structs/{structName}';");
+        }
+        cb.AppendLine();
+
+        cb.AppendLine("// Natives");
+        cb.AppendLine("export * from './natives';");
+
+        File.WriteAllText(Path.Combine(outputPath, "index.ts"), cb.ToString());
     }
 
     private void GenerateClassOutput(NativeDatabase db, string outputPath)
@@ -59,6 +136,7 @@ public class TypeScriptGenerator : ICodeGenerator
         GenerateCommonFiles(db, outputPath);
 
         var classNatives = _classifier.Classify(db);
+        var handleClassNames = classNatives.HandleClasses.Keys.ToHashSet();
 
         var classesDir = Path.Combine(outputPath, "classes");
         Directory.CreateDirectory(classesDir);
@@ -73,12 +151,12 @@ public class TypeScriptGenerator : ICodeGenerator
         Directory.CreateDirectory(namespacesDir);
         foreach (var (namespaceName, natives) in classNatives.NamespaceClasses)
         {
-            var content = _classGenerator.GenerateNamespaceClass(namespaceName, natives);
-            var className = NameConverter.NamespaceToClassName(namespaceName);
+            var className = NameConverter.NamespaceToClassName(namespaceName, handleClassNames);
+            var content = _classGenerator.GenerateNamespaceClass(namespaceName, natives, handleClassNames);
             File.WriteAllText(Path.Combine(namespacesDir, $"{className}.ts"), content);
         }
 
-        GenerateClassIndex(db, classNatives, outputPath);
+        GenerateClassIndex(db, classNatives, outputPath, handleClassNames);
     }
 
     private void GenerateCommonFiles(NativeDatabase db, string outputPath)
@@ -111,11 +189,9 @@ public class TypeScriptGenerator : ICodeGenerator
 
               constructor(bufferSize: number, existingBuffer?: ArrayBuffer, offset?: number) {
                 if (existingBuffer !== undefined && offset !== undefined) {
-                  // Nested mode: share parent's buffer with offset
                   this.buffer = existingBuffer;
                   this.view = new DataView(existingBuffer, offset, bufferSize);
                 } else {
-                  // Standalone mode: create own buffer
                   this.buffer = new ArrayBuffer(bufferSize);
                   this.view = new DataView(this.buffer);
                 }
@@ -182,73 +258,6 @@ public class TypeScriptGenerator : ICodeGenerator
         File.WriteAllText(Path.Combine(typesDir, "BufferedClass.ts"), GenerateBufferedClassBase());
     }
 
-    private string GenerateRawNamespace(NativeNamespace ns)
-    {
-        var cb = new CodeBuilder();
-
-        cb.AppendLine("import { Vector3 } from '../types/Vector3';");
-        cb.AppendLine();
-
-        foreach (var native in ns.Natives)
-        {
-            GenerateRawFunction(cb, native);
-        }
-
-        return cb.ToString();
-    }
-
-    private void GenerateRawFunction(CodeBuilder cb, NativeDefinition native)
-    {
-        var functionName = NameConverter.ToPascalCase(native.Name.TrimStart('_'));
-        var inputParams = native.Parameters.Where(p => !p.IsOutput).ToList();
-
-        var doc = new JsDocBuilder()
-            .AddDescription(native.Description);
-        foreach (var param in inputParams)
-        {
-            var tsType = _emitter.TypeMapper.MapType(param.Type, param.Attributes.IsNotNull);
-            doc.AddParam(param.Name, tsType, param.Description);
-        }
-        if (!string.IsNullOrWhiteSpace(native.ReturnDescription))
-        {
-            var returnType = _emitter.TypeMapper.MapType(native.ReturnType);
-            doc.AddReturn(returnType, native.ReturnDescription);
-        }
-        doc.Render(cb);
-
-        var returnType2 = _emitter.TypeMapper.MapType(native.ReturnType);
-        var paramString = BuildRawParameterString(inputParams);
-
-        cb.AppendLine($"export function {functionName}({paramString}): {returnType2} {{");
-        cb.Indent();
-
-        // Pass ALL parameters (ArgumentBuilder handles output pointers)
-        var args = ArgumentBuilder.BuildInvokeArgs(native, native.Parameters, _emitter.TypeMapper);
-
-        var invokeType = _emitter.TypeMapper.GetInvokeReturnType(native.ReturnType);
-        cb.AppendLine($"return Citizen.invokeNative<{invokeType}>({string.Join(", ", args)});");
-
-        cb.Dedent();
-        cb.AppendLine("}");
-        cb.AppendLine();
-    }
-
-    private string BuildRawParameterString(List<NativeParameter> parameters)
-    {
-        var parts = new List<string>();
-        foreach (var param in parameters)
-        {
-            var tsType = _emitter.TypeMapper.MapType(param.Type, param.Attributes.IsNotNull);
-            if (param.Type.Category == TypeCategory.Handle)
-            {
-                tsType = "number";
-            }
-            var optional = param.HasDefaultValue ? "?" : "";
-            parts.Add($"{param.Name}{optional}: {tsType}");
-        }
-        return string.Join(", ", parts);
-    }
-
     private void GenerateRawIndex(NativeDatabase db, string outputPath)
     {
         var cb = new CodeBuilder();
@@ -282,7 +291,7 @@ public class TypeScriptGenerator : ICodeGenerator
         File.WriteAllText(Path.Combine(outputPath, "index.ts"), cb.ToString());
     }
 
-    private void GenerateClassIndex(NativeDatabase db, ClassifiedNatives classNatives, string outputPath)
+    private void GenerateClassIndex(NativeDatabase db, ClassifiedNatives classNatives, string outputPath, HashSet<string> handleClassNames)
     {
         var cb = new CodeBuilder();
 
@@ -316,10 +325,37 @@ public class TypeScriptGenerator : ICodeGenerator
         cb.AppendLine("// Namespace utilities");
         foreach (var nsName in classNatives.NamespaceClasses.Keys.OrderBy(k => k))
         {
-            var className = NameConverter.NamespaceToClassName(nsName);
+            var className = NameConverter.NamespaceToClassName(nsName, handleClassNames);
             cb.AppendLine($"export {{ {className} }} from './namespaces/{className}';");
         }
 
         File.WriteAllText(Path.Combine(outputPath, "index.ts"), cb.ToString());
+    }
+
+    private static string GetFunctionName(string nativeName)
+    {
+        var trimmed = nativeName.TrimStart('_');
+        if (trimmed.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
+            return "N_" + trimmed;
+        return ToPascalCase(trimmed);
+    }
+
+    private static string ToPascalCase(string name)
+    {
+        var sb = new System.Text.StringBuilder();
+        bool capitalizeNext = true;
+        foreach (var c in name)
+        {
+            if (c == '_')
+                capitalizeNext = true;
+            else if (capitalizeNext)
+            {
+                sb.Append(char.ToUpperInvariant(c));
+                capitalizeNext = false;
+            }
+            else
+                sb.Append(char.ToLowerInvariant(c));
+        }
+        return sb.ToString();
     }
 }

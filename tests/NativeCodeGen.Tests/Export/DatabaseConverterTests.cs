@@ -55,7 +55,6 @@ public class DatabaseConverterTests
                                 }
                             },
                             Aliases = new List<string> { "0xA86D5F069399F44D" },
-                            UsedEnums = new List<string> { "eEntityType" },
                             RelatedExamples = new List<string> { "CreatePed" }
                         }
                     }
@@ -81,7 +80,6 @@ public class DatabaseConverterTests
         Assert.Equal("client", native.ApiSet);
         Assert.Single(native.Parameters);
         Assert.Single(native.Aliases!);
-        Assert.Single(native.UsedEnums!);
         Assert.Single(native.RelatedExamples!);
     }
 
@@ -119,12 +117,9 @@ public class DatabaseConverterTests
                                 },
                                 new NativeParameter
                                 {
-                                    Name = "custom",
-                                    Type = TypeInfo.Parse("int"),
-                                    Attributes = new ParameterAttributes
-                                    {
-                                        CustomAttributes = new List<string> { "@custom1", "@custom2" }
-                                    }
+                                    Name = "value",
+                                    Type = TypeInfo.Parse("int*"),
+                                    Attributes = new ParameterAttributes { IsIn = true }
                                 }
                             }
                         }
@@ -137,14 +132,13 @@ public class DatabaseConverterTests
         var result = DatabaseConverter.Convert(db, options);
 
         var native = result.Namespaces[0].Natives[0];
-        Assert.Contains("@this", native.Parameters[0].Attributes!);
-        Assert.Contains("@notnull", native.Parameters[1].Attributes!);
-        Assert.Contains("@custom1", native.Parameters[2].Attributes!);
-        Assert.Contains("@custom2", native.Parameters[2].Attributes!);
+        Assert.True(native.Parameters[0].Flags.HasFlag(ParamFlags.This));
+        Assert.True(native.Parameters[1].Flags.HasFlag(ParamFlags.NotNull));
+        Assert.True(native.Parameters[2].Flags.HasFlag(ParamFlags.In));
     }
 
     [Fact]
-    public void Convert_WithOutputParameter_SetsIsOutput()
+    public void Convert_WithOutputParameter_SetsOutputFlag()
     {
         var db = new ParsingDb
         {
@@ -178,8 +172,8 @@ public class DatabaseConverterTests
         var result = DatabaseConverter.Convert(db, options);
 
         var native = result.Namespaces[0].Natives[0];
-        Assert.False(native.Parameters[0].IsOutput);
-        Assert.True(native.Parameters[1].IsOutput);
+        Assert.False(native.Parameters[0].Flags.HasFlag(ParamFlags.Output));
+        Assert.True(native.Parameters[1].Flags.HasFlag(ParamFlags.Output));
     }
 
     [Fact]
@@ -235,8 +229,7 @@ public class DatabaseConverterTests
                     Members = new List<ModelEnumMember>
                     {
                         new ModelEnumMember { Name = "WEAPON_PISTOL", Value = "0x1234" }
-                    },
-                    UsedByNatives = new List<string> { "GET_WEAPON" }
+                    }
                 }
             }
         };
@@ -249,7 +242,6 @@ public class DatabaseConverterTests
         Assert.Equal("eWeaponHash", enumDef.Name);
         Assert.Equal("Hash", enumDef.BaseType);
         Assert.Single(enumDef.Members);
-        Assert.Single(enumDef.UsedByNatives!);
     }
 
     [Fact]
@@ -286,13 +278,14 @@ public class DatabaseConverterTests
                         {
                             Name = "hash",
                             Type = TypeInfo.Parse("Hash"),
-                            IsInput = true
+                            IsInput = true,
+                            IsOutput = false // @in = setter only
                         },
                         new ModelStructField
                         {
                             Name = "data",
                             Type = TypeInfo.Parse("int"),
-                            ArraySize = 4  // IsArray is computed from ArraySize > 0
+                            ArraySize = 4  // ArraySize > 0 means it's an array
                         }
                     },
                     UsedByNatives = new List<(string Name, string Hash)>
@@ -311,8 +304,7 @@ public class DatabaseConverterTests
         Assert.Equal("scrItemInfo", structDef.Name);
         Assert.Equal(8, structDef.DefaultAlignment);
         Assert.Equal(2, structDef.Fields.Count);
-        Assert.True(structDef.Fields[0].IsInput);
-        Assert.True(structDef.Fields[1].IsArray);
+        Assert.True(structDef.Fields[0].Flags.HasFlag(FieldFlags.In));
         Assert.Equal(4, structDef.Fields[1].ArraySize);
         Assert.Single(structDef.UsedByNatives!);
     }
@@ -404,7 +396,6 @@ public class DatabaseConverterTests
                             Namespace = "TEST",
                             ReturnType = TypeInfo.Parse("void"),
                             Aliases = new List<string>(),
-                            UsedEnums = new List<string>(),
                             RelatedExamples = new List<string>()
                         }
                     }
@@ -417,7 +408,6 @@ public class DatabaseConverterTests
 
         var native = result.Namespaces[0].Natives[0];
         Assert.Null(native.Aliases);
-        Assert.Null(native.UsedEnums);
         Assert.Null(native.RelatedExamples);
     }
 }

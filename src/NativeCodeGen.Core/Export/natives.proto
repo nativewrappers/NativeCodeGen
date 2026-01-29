@@ -2,6 +2,25 @@ syntax = "proto3";
 
 package rdr3natives;
 
+// Bitflags for parameter attributes
+// Can be combined: Output | This = 3
+enum ParamFlags {
+  PARAM_NONE = 0;
+  PARAM_OUTPUT = 1;    // Pointer output parameter
+  PARAM_THIS = 2;      // @this - instance method receiver
+  PARAM_NOTNULL = 4;   // @notnull - string cannot be null
+  PARAM_IN = 8;        // @in - input+output pointer
+}
+
+// Bitflags for struct field attributes
+// Can be combined for special cases
+enum FieldFlags {
+  FIELD_NONE = 0;
+  FIELD_IN = 1;        // @in - setter only
+  FIELD_OUT = 2;       // @out - getter only
+  FIELD_PADDING = 4;   // @padding - no accessors
+}
+
 message Database {
   repeated Namespace namespaces = 1;
   repeated Enum enums = 2;
@@ -32,9 +51,8 @@ message Parameter {
   string name = 1;
   string type = 2;
   string description = 3;
-  repeated string attributes = 4;
+  uint32 flags = 4;    // ParamFlags bitfield
   optional string default_value = 5;
-  bool is_output = 6;
 }
 
 message Enum {
@@ -60,14 +78,10 @@ message StructField {
   string name = 1;
   string type = 2;
   optional string comment = 3;
-  bool is_input = 4;
-  bool is_output = 5;
-  int32 array_size = 6;
-  bool is_array = 7;
-  bool is_nested_struct = 8;
-  optional string nested_struct_name = 9;
-  bool is_padding = 10;
-  optional int32 alignment = 11;
+  uint32 flags = 4;    // FieldFlags bitfield
+  int32 array_size = 5;
+  optional string nested_struct_name = 6;
+  optional int32 alignment = 7;
 }
 
 message NativeReference {

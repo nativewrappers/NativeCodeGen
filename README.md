@@ -12,6 +12,7 @@ NativeCodeGen is a code generation tool for RDR3 (Red Dead Redemption 3) native 
 - Parses C-style enum definitions with hexadecimal values
 - Parses C-style struct definitions with field attributes
 - Generates TypeScript wrapper classes with proper type mappings
+- Generates Lua wrapper classes with proper type annotations
 - Generates JSON database for web-based documentation
 - Generates Protocol Buffer binary files for efficient data transfer
 - Validates native definitions with error accumulation and reporting
@@ -84,9 +85,10 @@ dotnet run --project src/NativeCodeGen.Cli -- generate -i <input> -o <output> [o
 
 | Option | Description | Default |
 |--------|-------------|---------|
-| `-f, --format` | Output format: `typescript`, `json`, `proto` | `typescript` |
+| `-f, --format` | Output format: `typescript`, `lua`, `json`, `proto` | `typescript` |
 | `-n, --namespaces` | Filter specific namespaces (comma-separated) | All namespaces |
-| `--raw` | Generate raw native declarations without wrapper classes (TypeScript only) | `false` |
+| `--raw` | Generate raw native declarations without wrapper classes (TypeScript/Lua) | `false` |
+| `--single-file` | Combine all natives into a single file (requires `--raw`) | `false` |
 | `--strict` | Treat warnings as errors | `false` |
 
 #### Examples
@@ -97,10 +99,34 @@ Generate TypeScript wrapper classes:
 nativegen generate -i /path/to/rdr3-natives -o ./output -f typescript
 ```
 
-Generate raw TypeScript declarations (no classes):
+Generate raw TypeScript declarations (no classes, one file per namespace):
 
 ```bash
 nativegen generate -i /path/to/rdr3-natives -o ./output -f typescript --raw
+```
+
+Generate raw TypeScript declarations (single file with all natives):
+
+```bash
+nativegen generate -i /path/to/rdr3-natives -o ./output -f typescript --raw --single-file
+```
+
+Generate Lua wrapper classes:
+
+```bash
+nativegen generate -i /path/to/rdr3-natives -o ./output -f lua
+```
+
+Generate raw Lua declarations (no classes, one file per namespace):
+
+```bash
+nativegen generate -i /path/to/rdr3-natives -o ./output -f lua --raw
+```
+
+Generate raw Lua declarations (single file with all natives):
+
+```bash
+nativegen generate -i /path/to/rdr3-natives -o ./output -f lua --raw --single-file
 ```
 
 Generate JSON database:
@@ -141,6 +167,64 @@ dotnet run --project src/NativeCodeGen.Cli -- validate -i <input> [options]
 nativegen validate -i /path/to/rdr3-natives --strict
 ```
 
+## Generation Modes
+
+The `--raw` and `--single-file` flags control how native functions are generated:
+
+### Default Mode (Classes)
+
+Without flags, generates OOP-style wrapper classes where natives are organized as methods on entity classes:
+
+```typescript
+// classes/Entity.ts
+export class Entity implements IHandle {
+  constructor(public handle: number) {}
+
+  getCoords(alive: boolean): Vector3 {
+    return Vector3.fromArray(inv<number[]>('0x...', this.handle, alive, rav()));
+  }
+}
+
+// Usage
+const ped = new Ped(pedHandle);
+const coords = ped.getCoords(true);
+```
+
+### Raw Mode (`--raw`)
+
+Generates standalone exported functions with handles as plain numbers. One file per namespace:
+
+```typescript
+// natives/ENTITY.ts
+export function GetEntityCoords(entity: number, alive: boolean): Vector3 {
+  return Vector3.fromArray(inv('0x...', entity, alive, rav()));
+}
+
+// Usage
+const coords = GetEntityCoords(pedHandle, true);
+```
+
+### Single File Mode (`--raw --single-file`)
+
+Generates all natives in a single file as global functions. Useful for smaller bundles:
+
+```typescript
+// natives.ts
+globalThis.GetEntityCoords = function(entity: number, alive: boolean): Vector3 {
+  return Vector3.fromArray(inv('0x...', entity, alive, rav()));
+};
+
+// Usage (functions are on globalThis)
+const coords = GetEntityCoords(pedHandle, true);
+```
+
+### Lua Modes
+
+Lua follows the same pattern:
+
+- **Raw mode**: Module tables per namespace (`Water.GetWaterHeight(...)`)
+- **Single file mode**: Global functions (`GetWaterHeight(...)`)
+
 ## Output Formats
 
 ### TypeScript (default)
@@ -167,7 +251,7 @@ output/
     └── *.ts              # Static utility classes
 ```
 
-With `--raw` flag, generates standalone functions without class wrappers:
+With `--raw` flag, generates standalone functions without class wrappers (one file per namespace):
 
 ```
 output/
@@ -176,7 +260,63 @@ output/
 ├── enums/
 ├── structs/
 └── natives/
-    └── *.ts              # Raw native function exports
+    └── *.ts              # Raw native function exports per namespace
+```
+
+With `--raw --single-file` flags, generates all natives in a single file:
+
+```
+output/
+├── index.ts
+├── types/
+├── enums/
+├── structs/
+└── natives.ts            # All native functions in one file
+```
+
+### Lua
+
+Generates typed wrapper classes with LuaLS annotations:
+
+```
+output/
+├── init.lua              # Re-exports all modules
+├── types/
+│   ├── IHandle.lua       # Handle interface
+│   ├── Vector3.lua       # Vector3 class
+│   └── BufferedClass.lua # Base class for structs
+├── enums/
+│   └── *.lua             # Enum definitions
+├── structs/
+│   └── *.lua             # Struct classes (BufferedClass)
+├── classes/
+│   ├── Entity.lua        # Base entity class
+│   ├── Ped.lua           # Ped class (extends Entity)
+│   ├── Vehicle.lua       # Vehicle class (extends Entity)
+│   └── *.lua             # Other handle classes
+└── namespaces/
+    └── *.lua             # Static utility classes
+```
+
+With `--raw` flag, generates standalone functions (one file per namespace):
+
+```
+output/
+├── fxmanifest.lua
+├── enums/
+├── structs/
+└── natives/
+    └── *.lua             # Raw native function exports per namespace (module tables)
+```
+
+With `--raw --single-file` flags, generates all natives in a single file:
+
+```
+output/
+├── fxmanifest.lua
+├── enums/
+├── structs/
+└── natives.lua           # All native functions in one file (global functions)
 ```
 
 ### JSON
@@ -298,6 +438,9 @@ NativeCodeGen/
     │   ├── TypeSystem/              # Type mapping and categories
     │   └── Export/                  # Exporters (JSON, Protobuf)
     ├── NativeCodeGen.TypeScript/    # TypeScript generation
+    │   ├── Generation/              # Code generators
+    │   └── Utilities/               # Name conversion, etc.
+    ├── NativeCodeGen.Lua/           # Lua generation
     │   ├── Generation/              # Code generators
     │   └── Utilities/               # Name conversion, etc.
     └── NativeCodeGen.Cli/           # Command-line interface
