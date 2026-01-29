@@ -28,6 +28,7 @@
     <!-- Trimming to reduce binary size -->
     <PublishTrimmed>true</PublishTrimmed>
     <TrimMode>link</TrimMode>
+
   </PropertyGroup>
 
   <!-- Preserve types for reflection-based libraries -->

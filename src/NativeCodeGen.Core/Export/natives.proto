@@ -91,6 +91,7 @@ message NativeReference {
 
 message SharedExample {
   string name = 1;
-  string content = 2;
-  optional string language = 3;
+  optional string title = 2;
+  string content = 3;
+  optional string language = 4;
 }

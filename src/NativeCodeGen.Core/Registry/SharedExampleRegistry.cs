@@ -1,12 +1,28 @@
 using NativeCodeGen.Core.Models;
+using YamlDotNet.Serialization;
+using YamlDotNet.Serialization.NamingConventions;
 
 namespace NativeCodeGen.Core.Registry;
+
+public class SharedExampleFrontmatter
+{
+    public string? Title { get; set; }
+}
 
 public class SharedExampleRegistry
 {
     private readonly Dictionary<string, SharedExample> _examples = new(StringComparer.OrdinalIgnoreCase);
+    private readonly IDeserializer _deserializer;
 
     public int Count => _examples.Count;
+
+    public SharedExampleRegistry()
+    {
+        _deserializer = new DeserializerBuilder()
+            .WithNamingConvention(CamelCaseNamingConvention.Instance)
+            .IgnoreUnmatchedProperties()
+            .Build();
+    }
 
     public void LoadExamples(string directory)
     {
@@ -18,16 +34,51 @@ public class SharedExampleRegistry
             var name = Path.GetFileNameWithoutExtension(file);
             var content = File.ReadAllText(file);
 
-            // Extract language and code content from markdown code block
-            var (language, code) = ParseCodeBlock(content);
+            // Extract frontmatter and code content
+            var (frontmatter, body) = ParseFrontmatter(content);
+            var (language, code) = ParseCodeBlock(body);
 
             _examples[name] = new SharedExample
             {
                 Name = name,
+                Title = frontmatter?.Title,
                 Content = code,
                 Language = language,
                 SourceFile = file
             };
+        }
+    }
+
+    private (SharedExampleFrontmatter? frontmatter, string body) ParseFrontmatter(string content)
+    {
+        var lines = content.Split('\n');
+        if (lines.Length == 0 || lines[0].Trim() != "---")
+            return (null, content);
+
+        int endIndex = -1;
+        for (int i = 1; i < lines.Length; i++)
+        {
+            if (lines[i].Trim() == "---")
+            {
+                endIndex = i;
+                break;
+            }
+        }
+
+        if (endIndex == -1)
+            return (null, content);
+
+        var yamlContent = string.Join('\n', lines.Skip(1).Take(endIndex - 1));
+        var body = string.Join("\n", lines.Skip(endIndex + 1));
+
+        try
+        {
+            var frontmatter = _deserializer.Deserialize<SharedExampleFrontmatter>(yamlContent);
+            return (frontmatter, body);
+        }
+        catch
+        {
+            return (null, body);
         }
     }
 

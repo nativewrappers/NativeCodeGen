@@ -47,10 +47,34 @@ public static class DatabaseConverter
             }
         }
 
-        // Convert shared examples
+        // Convert shared examples - referenced examples first
+        var referencedExamples = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var ns in db.Namespaces)
+        {
+            foreach (var native in ns.Natives)
+            {
+                foreach (var exampleName in native.RelatedExamples)
+                {
+                    referencedExamples.Add(exampleName);
+                }
+            }
+        }
+
+        // Add referenced examples first, then the rest
+        foreach (var name in referencedExamples)
+        {
+            if (db.SharedExamples.TryGetValue(name, out var example))
+            {
+                export.SharedExamples.Add(ConvertSharedExample(example));
+            }
+        }
+
         foreach (var (name, example) in db.SharedExamples)
         {
-            export.SharedExamples.Add(ConvertSharedExample(example));
+            if (!referencedExamples.Contains(name))
+            {
+                export.SharedExamples.Add(ConvertSharedExample(example));
+            }
         }
 
         // Add type definitions
@@ -141,6 +165,7 @@ public static class DatabaseConverter
         return new ExportSharedExample
         {
             Name = example.Name,
+            Title = example.Title,
             Content = example.Content,
             Language = example.Language
         };
