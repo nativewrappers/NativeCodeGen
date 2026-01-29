@@ -4,6 +4,7 @@ using NativeCodeGen.Core.Export;
 using NativeCodeGen.Core.Models;
 using NativeCodeGen.Core.Parsing;
 using NativeCodeGen.Core.Registry;
+using NativeCodeGen.Core.Utilities;
 using NativeCodeGen.Lua;
 using NativeCodeGen.TypeScript;
 
@@ -262,6 +263,44 @@ class Program
                 });
             }
         });
+
+        // Check for duplicate native names (globally, after normalization)
+        var duplicateNames = allNatives
+            .GroupBy(n => NameConverter.NormalizeNativeName(n.Name), StringComparer.OrdinalIgnoreCase)
+            .Where(g => g.Count() > 1)
+            .ToList();
+
+        foreach (var dup in duplicateNames)
+        {
+            var natives = dup.ToList();
+            var names = natives.Select(n => n.Name).Distinct().ToList();
+            var nameDisplay = names.Count > 1 ? $"'{string.Join("', '", names)}'" : $"'{names[0]}'";
+            allErrors.Add(new ParseError
+            {
+                FilePath = natives[0].SourceFile ?? "unknown",
+                Line = 1,
+                Column = 1,
+                Message = $"Duplicate native name {nameDisplay} (normalized: '{dup.Key}'). Also defined in: {string.Join(", ", natives.Skip(1).Select(n => Path.GetFileName(n.SourceFile ?? "unknown")))}"
+            });
+        }
+
+        // Check for duplicate hashes
+        var duplicateHashes = allNatives
+            .GroupBy(n => n.Hash, StringComparer.OrdinalIgnoreCase)
+            .Where(g => g.Count() > 1)
+            .ToList();
+
+        foreach (var dup in duplicateHashes)
+        {
+            var natives = dup.ToList();
+            allErrors.Add(new ParseError
+            {
+                FilePath = natives[0].SourceFile ?? "unknown",
+                Line = 1,
+                Column = 1,
+                Message = $"Duplicate hash '{dup.Key}'. Also defined in: {string.Join(", ", natives.Skip(1).Select(n => Path.GetFileName(n.SourceFile ?? "unknown")))}"
+            });
+        }
 
         // Group natives by namespace
         var namespaceDict = allNatives
