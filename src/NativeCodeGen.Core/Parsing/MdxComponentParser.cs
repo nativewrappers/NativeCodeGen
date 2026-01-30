@@ -27,17 +27,17 @@ public class NativeRef
 public partial class MdxComponentParser
 {
     // Attribute format patterns: [type: name]
-    [GeneratedRegex(@"\[enum:\s*[""']?(\w+)[""']?\]", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"\[enum:\s*(\w+)\]", RegexOptions.IgnoreCase)]
     private static partial Regex EnumAttributeRegex();
 
-    [GeneratedRegex(@"\[example:\s*[""']?(\w+)[""']?\]", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"\[example:\s*(\w+)\]", RegexOptions.IgnoreCase)]
     private static partial Regex ExampleAttributeRegex();
 
-    [GeneratedRegex(@"\[struct:\s*[""']?(\w+)[""']?\]", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"\[struct:\s*(\w+)\]", RegexOptions.IgnoreCase)]
     private static partial Regex StructAttributeRegex();
 
     // Native refs: [native: NAME] or [native: NAME | game]
-    [GeneratedRegex(@"\[native:\s*[""']?([\w]+)[""']?(?:\s*\|\s*(\w+))?\]", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"\[native:\s*([\w]+)(?:\s*\|\s*(\w+))?\]", RegexOptions.IgnoreCase)]
     private static partial Regex NativeAttributeRegex();
 
     // Callout patterns: [note: Description] or [note: Title | Description]
