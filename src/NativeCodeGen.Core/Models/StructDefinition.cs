@@ -14,9 +14,9 @@ public class StructDefinition
     public int? DefaultAlignment { get; set; }
 
     /// <summary>
-    /// Natives that use this struct (name, hash pairs)
+    /// Native hashes that use this struct
     /// </summary>
-    public List<(string Name, string Hash)> UsedByNatives { get; set; } = new();
+    public List<string> UsedByNatives { get; set; } = new();
 }
 
 public class StructField

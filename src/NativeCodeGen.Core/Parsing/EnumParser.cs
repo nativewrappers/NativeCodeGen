@@ -161,7 +161,56 @@ internal class EnumTokenParser
             Advance();
         }
 
+        // Fill in missing values (C-style enum: unassigned = previous + 1)
+        FillMissingValues(enumDef.Members);
+
         return enumDef;
+    }
+
+    private static void FillMissingValues(List<EnumMember> members)
+    {
+        long nextValue = 0;
+
+        for (int i = 0; i < members.Count; i++)
+        {
+            var member = members[i];
+
+            if (member.Value != null)
+            {
+                // Try to parse the explicit value
+                if (TryParseEnumValue(member.Value, out var parsed))
+                {
+                    nextValue = parsed + 1;
+                }
+                else
+                {
+                    // Complex expression - can't determine next value, reset to unknown
+                    // Keep the expression as-is and hope next member has explicit value
+                    nextValue = 0;
+                }
+            }
+            else
+            {
+                // No explicit value - assign sequential value
+                member.Value = nextValue.ToString();
+                nextValue++;
+            }
+        }
+    }
+
+    private static bool TryParseEnumValue(string value, out long result)
+    {
+        result = 0;
+        var trimmed = value.Trim();
+
+        // Handle hex values
+        if (trimmed.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
+        {
+            return long.TryParse(trimmed[2..], System.Globalization.NumberStyles.HexNumber, null, out result);
+        }
+
+        // Handle negative and positive integers
+        return long.TryParse(trimmed, out result);
     }
 
     private EnumMember? ParseMember()

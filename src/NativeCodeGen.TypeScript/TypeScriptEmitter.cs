@@ -336,9 +336,9 @@ public class TypeScriptEmitter : ILanguageEmitter
         if (structDef.UsedByNatives.Count > 0)
         {
             var usageLines = new List<string> { "Used by:" };
-            foreach (var (name, hash) in structDef.UsedByNatives.Take(10))
+            foreach (var hash in structDef.UsedByNatives.Take(10))
             {
-                usageLines.Add($"- [{name}](https://natives.avarian.dev/?native={hash}&game=rdr3)");
+                usageLines.Add($"- [{hash}](https://natives.avarian.dev/?native={hash}&game=rdr3)");
             }
             if (structDef.UsedByNatives.Count > 10)
             {

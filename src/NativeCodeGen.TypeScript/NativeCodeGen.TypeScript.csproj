@@ -10,4 +10,8 @@
     <ProjectReference Include="..\NativeCodeGen.Core\NativeCodeGen.Core.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <EmbeddedResource Include="Resources\native-treeshake.js" />
+  </ItemGroup>
+
 </Project>

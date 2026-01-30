@@ -27,18 +27,287 @@ public class TypeScriptGenerator : ICodeGenerator
     {
         Directory.CreateDirectory(outputPath);
 
-        if (options.UseClasses)
+        if (options.Package)
+        {
+            GeneratePackageOutput(db, outputPath, options);
+        }
+        else if (options.UseClasses)
         {
             GenerateClassOutput(db, outputPath);
         }
         else if (options.SingleFile)
         {
-            GenerateSingleFileOutput(db, outputPath);
+            GenerateSingleFileOutput(db, outputPath, options.UseExports);
         }
         else
         {
             GenerateRawOutput(db, outputPath);
         }
+    }
+
+    private void GeneratePackageOutput(NativeDatabase db, string outputPath, GeneratorOptions options)
+    {
+        var isRawMode = !options.UseClasses;
+
+        // Generate source files in src/ subdirectory
+        var srcDir = Path.Combine(outputPath, "src");
+        Directory.CreateDirectory(srcDir);
+
+        // Generate the appropriate output style in src/
+        if (isRawMode)
+        {
+            // Raw single-file mode with exports
+            GenerateCommonFiles(db, srcDir);
+            GenerateSingleFileOutput(db, srcDir, useExports: true);
+        }
+        else
+        {
+            // Class-based mode
+            GenerateClassOutput(db, srcDir);
+        }
+
+        // Generate package.json - different structure based on mode
+        var packageJson = isRawMode
+            ? GenerateRawPackageJson(options)
+            : GenerateClassPackageJson(options);
+        File.WriteAllText(Path.Combine(outputPath, "package.json"), packageJson);
+
+        // Generate tsconfig.json
+        var tsconfig = """
+            {
+              "compilerOptions": {
+                "target": "ES2020",
+                "module": "ESNext",
+                "moduleResolution": "bundler",
+                "declaration": true,
+                "declarationMap": true,
+                "outDir": "./dist",
+                "rootDir": "./src",
+                "strict": true,
+                "skipLibCheck": true,
+                "esModuleInterop": true
+              },
+              "include": ["src/**/*"],
+              "exclude": ["node_modules", "dist", "plugin"]
+            }
+            """;
+        File.WriteAllText(Path.Combine(outputPath, "tsconfig.json"), tsconfig);
+
+        // Only include esbuild plugin for raw mode (tree-shaking)
+        if (isRawMode)
+        {
+            var pluginDir = Path.Combine(outputPath, "plugin");
+            Directory.CreateDirectory(pluginDir);
+
+            var assembly = typeof(TypeScriptGenerator).Assembly;
+            using var stream = assembly.GetManifestResourceStream("NativeCodeGen.TypeScript.Resources.native-treeshake.js");
+            if (stream != null)
+            {
+                using var reader = new StreamReader(stream);
+                File.WriteAllText(Path.Combine(pluginDir, "native-treeshake.js"), reader.ReadToEnd());
+            }
+        }
+
+        // Generate README
+        var readme = isRawMode
+            ? GenerateRawReadme(options)
+            : GenerateClassReadme(options);
+        File.WriteAllText(Path.Combine(outputPath, "README.md"), readme);
+    }
+
+    private static string GenerateRawPackageJson(GeneratorOptions options)
+    {
+        return $$"""
+            {
+              "name": "{{options.PackageName ?? "@natives/generated"}}",
+              "version": "{{options.PackageVersion ?? "0.0.1"}}",
+              "description": "Auto-generated native function bindings with tree-shaking support",
+              "type": "module",
+              "main": "./dist/index.js",
+              "types": "./dist/index.d.ts",
+              "exports": {
+                ".": {
+                  "import": "./dist/index.js",
+                  "types": "./dist/index.d.ts"
+                },
+                "./natives": {
+                  "import": "./dist/natives.js",
+                  "types": "./dist/natives.d.ts"
+                },
+                "./plugin": {
+                  "import": "./plugin/native-treeshake.js"
+                }
+              },
+              "files": [
+                "dist",
+                "plugin",
+                "src"
+              ],
+              "scripts": {
+                "build": "tsc",
+                "prepublishOnly": "npm run build"
+              },
+              "devDependencies": {
+                "typescript": "^5.0.0"
+              },
+              "peerDependencies": {
+                "esbuild": ">=0.17.0"
+              },
+              "peerDependenciesMeta": {
+                "esbuild": {
+                  "optional": true
+                }
+              },
+              "keywords": [
+                "natives",
+                "fivem",
+                "redm",
+                "rdr3",
+                "gta5",
+                "esbuild",
+                "tree-shaking"
+              ],
+              "license": "MIT"
+            }
+            """;
+    }
+
+    private static string GenerateClassPackageJson(GeneratorOptions options)
+    {
+        return $$"""
+            {
+              "name": "{{options.PackageName ?? "@natives/generated"}}",
+              "version": "{{options.PackageVersion ?? "0.0.1"}}",
+              "description": "Auto-generated native function bindings with class-based API",
+              "type": "module",
+              "main": "./dist/index.js",
+              "types": "./dist/index.d.ts",
+              "exports": {
+                ".": {
+                  "import": "./dist/index.js",
+                  "types": "./dist/index.d.ts"
+                }
+              },
+              "files": [
+                "dist",
+                "src"
+              ],
+              "scripts": {
+                "build": "tsc",
+                "prepublishOnly": "npm run build"
+              },
+              "devDependencies": {
+                "typescript": "^5.0.0"
+              },
+              "keywords": [
+                "natives",
+                "fivem",
+                "redm",
+                "rdr3",
+                "gta5"
+              ],
+              "license": "MIT"
+            }
+            """;
+    }
+
+    private static string GenerateRawReadme(GeneratorOptions options)
+    {
+        return $$"""
+            # {{options.PackageName ?? "@natives/generated"}}
+
+            Auto-generated native function bindings with tree-shaking support.
+
+            ## Installation
+
+            ```bash
+            npm install {{options.PackageName ?? "@natives/generated"}}
+            ```
+
+            ## Usage
+
+            ### Direct imports (recommended for tree-shaking)
+
+            ```typescript
+            import { GetEntityCoords, CreatePed } from '{{options.PackageName ?? "@natives/generated"}}';
+
+            const coords = GetEntityCoords(entity, true);
+            ```
+
+            ### With esbuild plugin (auto-import)
+
+            ```javascript
+            import { nativeTreeshake } from '{{options.PackageName ?? "@natives/generated"}}/plugin';
+            import esbuild from 'esbuild';
+
+            esbuild.build({
+              entryPoints: ['src/index.ts'],
+              bundle: true,
+              plugins: [nativeTreeshake({
+                natives: './node_modules/{{options.PackageName ?? "@natives/generated"}}/dist/natives.js'
+              })]
+            });
+            ```
+
+            Then use natives directly without imports:
+
+            ```typescript
+            // No import needed - plugin handles it
+            const coords = GetEntityCoords(entity, true);
+            const ped = CreatePed(model, x, y, z, heading, false, false);
+            ```
+
+            ## Tree-shaking
+
+            Both approaches support tree-shaking - only the natives you actually use will be included in your bundle.
+            """;
+    }
+
+    private static string GenerateClassReadme(GeneratorOptions options)
+    {
+        return $$"""
+            # {{options.PackageName ?? "@natives/generated"}}
+
+            Auto-generated native function bindings with class-based API.
+
+            ## Installation
+
+            ```bash
+            npm install {{options.PackageName ?? "@natives/generated"}}
+            ```
+
+            ## Usage
+
+            ```typescript
+            import { Entity, Ped, Vehicle, World } from '{{options.PackageName ?? "@natives/generated"}}';
+
+            // Use handle classes
+            const ped = new Ped(playerPedId);
+            const coords = ped.getCoords(true);
+            const vehicle = ped.getCurrentVehicle();
+
+            // Use namespace utilities
+            const weather = World.getWeatherTypeTransition();
+            ```
+
+            ## API
+
+            ### Handle Classes
+            - `Entity` - Base class for all game entities
+            - `Ped` - Pedestrian/character entities
+            - `Vehicle` - Vehicle entities
+            - `Object` - Prop/object entities
+            - `Player` - Player-specific functions
+            - `Blip` - Map blip functions
+            - And more...
+
+            ### Namespace Utilities
+            Static classes for natives that don't operate on handles:
+            - `World` - Weather, time, etc.
+            - `Streaming` - Asset loading
+            - `Graphics` - Drawing, particles
+            - And more...
+            """;
     }
 
     private void GenerateRawOutput(NativeDatabase db, string outputPath)
@@ -66,7 +335,7 @@ public class TypeScriptGenerator : ICodeGenerator
         GenerateRawIndex(db, outputPath);
     }
 
-    private void GenerateSingleFileOutput(NativeDatabase db, string outputPath)
+    private void GenerateSingleFileOutput(NativeDatabase db, string outputPath, bool useExports = false)
     {
         GenerateCommonFiles(db, outputPath);
 
@@ -81,6 +350,7 @@ public class TypeScriptGenerator : ICodeGenerator
             }
         }
 
+        var bindingStyle = useExports ? BindingStyle.Export : BindingStyle.Global;
         var builder = new RawNativeBuilder(Language.TypeScript, _emitter.TypeMapper);
         builder.EmitImports(singleFile: true);
 
@@ -93,15 +363,15 @@ public class TypeScriptGenerator : ICodeGenerator
                     ? ToPascalCase(ns.Name.ToLowerInvariant()) + baseName
                     : baseName;
 
-                builder.EmitFunction(native, BindingStyle.Global, nameOverride: finalName);
+                builder.EmitFunction(native, bindingStyle, nameOverride: finalName);
             }
         }
 
         File.WriteAllText(Path.Combine(outputPath, "natives.ts"), builder.ToString());
-        GenerateSingleFileIndex(db, outputPath);
+        GenerateSingleFileIndex(db, outputPath, useExports);
     }
 
-    private void GenerateSingleFileIndex(NativeDatabase db, string outputPath)
+    private void GenerateSingleFileIndex(NativeDatabase db, string outputPath, bool useExports = false)
     {
         var cb = new CodeBuilder();
 
@@ -126,7 +396,14 @@ public class TypeScriptGenerator : ICodeGenerator
         cb.AppendLine();
 
         cb.AppendLine("// Natives");
-        cb.AppendLine("export * from './natives';");
+        if (useExports)
+        {
+            cb.AppendLine("export * from './natives';");
+        }
+        else
+        {
+            cb.AppendLine("import './natives';");
+        }
 
         File.WriteAllText(Path.Combine(outputPath, "index.ts"), cb.ToString());
     }

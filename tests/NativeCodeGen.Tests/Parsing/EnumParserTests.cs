@@ -86,7 +86,28 @@ public class EnumParserTests
     }
 
     [Fact]
-    public void Parse_EnumWithoutValues_ParsesCorrectly()
+    public void Parse_EnumWithNegativeStartAndAutoIncrement_GeneratesCorrectValues()
+    {
+        var content = """
+            enum eVehicleSeat {
+                VS_ANY_PASSENGER = -2,
+                VS_DRIVER,
+                VS_FRONT_RIGHT,
+                VS_BACK_LEFT
+            };
+            """;
+
+        var result = _parser.Parse(content, "test.c");
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal("-2", result.Value!.Members[0].Value);  // Explicit: -2
+        Assert.Equal("-1", result.Value.Members[1].Value);   // Auto: -2 + 1
+        Assert.Equal("0", result.Value.Members[2].Value);    // Auto: -1 + 1
+        Assert.Equal("1", result.Value.Members[3].Value);    // Auto: 0 + 1
+    }
+
+    [Fact]
+    public void Parse_EnumWithoutValues_AutoGeneratesSequentialValues()
     {
         var content = """
             enum eSimple {
@@ -100,13 +121,13 @@ public class EnumParserTests
 
         Assert.True(result.IsSuccess);
         Assert.Equal(3, result.Value!.Members.Count);
-        Assert.Null(result.Value.Members[0].Value);
-        Assert.Null(result.Value.Members[1].Value);
-        Assert.Null(result.Value.Members[2].Value);
+        Assert.Equal("0", result.Value.Members[0].Value);
+        Assert.Equal("1", result.Value.Members[1].Value);
+        Assert.Equal("2", result.Value.Members[2].Value);
     }
 
     [Fact]
-    public void Parse_EnumWithMixedValues_ParsesCorrectly()
+    public void Parse_EnumWithMixedValues_AutoGeneratesCorrectValues()
     {
         var content = """
             enum eMixed {
@@ -120,10 +141,10 @@ public class EnumParserTests
         var result = _parser.Parse(content, "test.c");
 
         Assert.True(result.IsSuccess);
-        Assert.Null(result.Value!.Members[0].Value);
-        Assert.Equal("5", result.Value.Members[1].Value);
-        Assert.Null(result.Value.Members[2].Value);
-        Assert.Equal("0x10", result.Value.Members[3].Value);
+        Assert.Equal("0", result.Value!.Members[0].Value);  // Auto: starts at 0
+        Assert.Equal("5", result.Value.Members[1].Value);   // Explicit: 5
+        Assert.Equal("6", result.Value.Members[2].Value);   // Auto: 5 + 1
+        Assert.Equal("0x10", result.Value.Members[3].Value); // Explicit: 0x10
     }
 
     [Fact]

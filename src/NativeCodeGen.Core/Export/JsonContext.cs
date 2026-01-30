@@ -20,7 +20,6 @@ namespace NativeCodeGen.Core.Export;
 [JsonSerializable(typeof(ExportEnumMember))]
 [JsonSerializable(typeof(ExportStruct))]
 [JsonSerializable(typeof(ExportStructField))]
-[JsonSerializable(typeof(ExportNativeReference))]
 [JsonSerializable(typeof(ExportSharedExample))]
 [JsonSerializable(typeof(ExportSharedExampleCode))]
 [JsonSerializable(typeof(List<ExportSharedExampleCode>))]

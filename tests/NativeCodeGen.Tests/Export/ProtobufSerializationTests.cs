@@ -155,10 +155,7 @@ public class ProtobufSerializationTests
                             ArraySize = 4
                         }
                     },
-                    UsedByNatives = new List<ExportNativeReference>
-                    {
-                        new ExportNativeReference { Name = "GET_ITEM_INFO", Hash = "0xABCD" }
-                    }
+                    UsedByNatives = new List<string> { "0xABCD" }
                 }
             }
         };
@@ -718,7 +715,7 @@ public class ProtobufSerializationTests
         {
             "ExportDatabase", "ExportNamespace", "ExportNative", "ExportParameter",
             "ExportEnum", "ExportEnumMember", "ExportStruct", "ExportStructField",
-            "ExportNativeReference", "ExportSharedExample", "ExportSharedExampleCode",
+            "ExportSharedExample", "ExportSharedExampleCode",
             "ExportTypeInfo", "ExportTypeEntry", "ExportCallout"
         };
 

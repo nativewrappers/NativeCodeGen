@@ -35,4 +35,24 @@ public class GeneratorOptions
     /// If true with raw mode, generate all natives in a single file.
     /// </summary>
     public bool SingleFile { get; set; }
+
+    /// <summary>
+    /// If true, use ES module exports instead of globalThis for tree-shaking support.
+    /// </summary>
+    public bool UseExports { get; set; }
+
+    /// <summary>
+    /// If true, generate a complete npm package with build scripts and esbuild plugin.
+    /// </summary>
+    public bool Package { get; set; }
+
+    /// <summary>
+    /// Package name for npm (e.g., "@nativewrappers/natives-rdr3").
+    /// </summary>
+    public string? PackageName { get; set; }
+
+    /// <summary>
+    /// Package version (e.g., "1.0.0").
+    /// </summary>
+    public string? PackageVersion { get; set; }
 }

@@ -27,7 +27,11 @@ public abstract class BaseExporter : IExporter
         var generatorOptions = new GeneratorOptions
         {
             UseClasses = !options.Raw,
-            SingleFile = options.SingleFile
+            SingleFile = options.SingleFile,
+            UseExports = options.UseExports,
+            Package = options.Package,
+            PackageName = options.PackageName,
+            PackageVersion = options.PackageVersion
         };
         Generator.Generate(db, outputPath, generatorOptions);
 

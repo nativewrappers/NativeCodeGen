@@ -54,6 +54,25 @@ class Program
             description: "Treat warnings as errors",
             getDefaultValue: () => false);
 
+        var exportsOption = new Option<bool>(
+            aliases: new[] { "--exports" },
+            description: "Use ES module exports for tree-shaking (requires --raw --single-file)",
+            getDefaultValue: () => false);
+
+        var packageOption = new Option<bool>(
+            aliases: new[] { "--package" },
+            description: "Generate a complete npm package with esbuild plugin",
+            getDefaultValue: () => false);
+
+        var packageNameOption = new Option<string?>(
+            aliases: new[] { "--package-name" },
+            description: "npm package name (e.g., @nativewrappers/natives-rdr3)");
+
+        var packageVersionOption = new Option<string?>(
+            aliases: new[] { "--package-version" },
+            description: "npm package version (e.g., 1.0.0)",
+            getDefaultValue: () => "0.0.1");
+
         generateCommand.AddOption(inputOption);
         generateCommand.AddOption(outputOption);
         generateCommand.AddOption(formatOption);
@@ -61,11 +80,27 @@ class Program
         generateCommand.AddOption(rawOption);
         generateCommand.AddOption(singleFileOption);
         generateCommand.AddOption(strictOption);
+        generateCommand.AddOption(exportsOption);
+        generateCommand.AddOption(packageOption);
+        generateCommand.AddOption(packageNameOption);
+        generateCommand.AddOption(packageVersionOption);
 
-        generateCommand.SetHandler(async (input, output, format, namespaces, raw, singleFile, strict) =>
+        generateCommand.SetHandler(async (context) =>
         {
-            await Generate(input, output, format, namespaces, raw, singleFile, strict);
-        }, inputOption, outputOption, formatOption, namespacesOption, rawOption, singleFileOption, strictOption);
+            var input = context.ParseResult.GetValueForOption(inputOption)!;
+            var output = context.ParseResult.GetValueForOption(outputOption)!;
+            var format = context.ParseResult.GetValueForOption(formatOption)!;
+            var namespaces = context.ParseResult.GetValueForOption(namespacesOption);
+            var raw = context.ParseResult.GetValueForOption(rawOption);
+            var singleFile = context.ParseResult.GetValueForOption(singleFileOption);
+            var strict = context.ParseResult.GetValueForOption(strictOption);
+            var exports = context.ParseResult.GetValueForOption(exportsOption);
+            var package_ = context.ParseResult.GetValueForOption(packageOption);
+            var packageName = context.ParseResult.GetValueForOption(packageNameOption);
+            var packageVersion = context.ParseResult.GetValueForOption(packageVersionOption);
+
+            await Generate(input, output, format, namespaces, raw, singleFile, strict, exports, package_, packageName, packageVersion);
+        });
 
         // Validate command
         var validateCommand = new Command("validate", "Validate MDX files without generating output");
@@ -94,7 +129,7 @@ class Program
         return await rootCommand.InvokeAsync(args);
     }
 
-    static async Task Generate(string input, string output, string format, string[]? namespaces, bool raw, bool singleFile, bool strict)
+    static async Task Generate(string input, string output, string format, string[]? namespaces, bool raw, bool singleFile, bool strict, bool exports, bool package_, string? packageName, string? packageVersion)
     {
         Console.WriteLine($"Generating {format} output...");
         Console.WriteLine($"Input: {input}");
@@ -105,6 +140,30 @@ class Program
             Console.Error.WriteLine("Error: --single-file requires --raw");
             Environment.ExitCode = 1;
             return;
+        }
+
+        if (exports && (!raw || !singleFile))
+        {
+            Console.Error.WriteLine("Error: --exports requires --raw --single-file");
+            Environment.ExitCode = 1;
+            return;
+        }
+
+        if (package_)
+        {
+            if (string.IsNullOrEmpty(packageName))
+            {
+                Console.Error.WriteLine("Error: --package requires --package-name");
+                Environment.ExitCode = 1;
+                return;
+            }
+
+            // If raw mode is specified with package, also enable single-file and exports
+            if (raw)
+            {
+                singleFile = true;
+                exports = true;
+            }
         }
 
         var (db, errors, warnings) = await ParseAllFiles(input);
@@ -142,6 +201,10 @@ class Program
             Raw = raw,
             SingleFile = singleFile,
             Strict = strict,
+            UseExports = exports,
+            Package = package_,
+            PackageName = packageName,
+            PackageVersion = packageVersion ?? "0.0.1",
             Namespaces = namespaces?.Length > 0
                 ? new HashSet<string>(namespaces.SelectMany(n => n.Split(',')), StringComparer.OrdinalIgnoreCase)
                 : null
@@ -320,21 +383,42 @@ class Program
             .GroupBy(n => n.Namespace, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(g => g.Key, g => g.ToList(), StringComparer.OrdinalIgnoreCase);
 
-        // Track struct usage - check parameter types for struct references
+        // Track struct and enum usage
         var structDict = structRegistry.GetAllStructs();
+        var enumDict = enumRegistry.GetAllEnums();
+
         foreach (var native in allNatives)
         {
+            // Check parameter types
             foreach (var param in native.Parameters)
             {
-                // Check if parameter type matches a known struct
                 var typeName = param.Type.Name;
+
+                // Check struct usage
                 if (structDict.TryGetValue(typeName, out var structDef))
                 {
-                    // Avoid duplicates
-                    if (!structDef.UsedByNatives.Any(u => u.Hash == native.Hash))
+                    if (!structDef.UsedByNatives.Contains(native.Hash))
                     {
-                        structDef.UsedByNatives.Add((native.Name, native.Hash));
+                        structDef.UsedByNatives.Add(native.Hash);
                     }
+                }
+
+                // Check enum usage (when Category is Enum, Name holds the enum name)
+                if (param.Type.Category == TypeCategory.Enum && enumDict.TryGetValue(param.Type.Name, out var enumDef))
+                {
+                    if (!enumDef.UsedByNatives.Contains(native.Hash))
+                    {
+                        enumDef.UsedByNatives.Add(native.Hash);
+                    }
+                }
+            }
+
+            // Check return type for enum usage
+            if (native.ReturnType.Category == TypeCategory.Enum && enumDict.TryGetValue(native.ReturnType.Name, out var returnEnumDef))
+            {
+                if (!returnEnumDef.UsedByNatives.Contains(native.Hash))
+                {
+                    returnEnumDef.UsedByNatives.Add(native.Hash);
                 }
             }
         }

@@ -117,6 +117,9 @@ public partial class ExportEnum
     [ProtoMember(3)]
     public List<ExportEnumMember> Members { get; set; } = new();
 
+    [ProtoMember(4)]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<string>? UsedByNatives { get; set; }
 }
 
 [ProtoContract]
@@ -141,7 +144,7 @@ public partial class ExportStruct
 
     [ProtoMember(3)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public List<ExportNativeReference>? UsedByNatives { get; set; }
+    public List<string>? UsedByNatives { get; set; }
 
     [ProtoMember(4)]
     public int? DefaultAlignment { get; set; }
@@ -175,16 +178,6 @@ public partial class ExportStructField
     [ProtoMember(7)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public int? Alignment { get; set; }
-}
-
-[ProtoContract]
-public partial class ExportNativeReference
-{
-    [ProtoMember(1)]
-    public string Name { get; set; } = string.Empty;
-
-    [ProtoMember(2)]
-    public string Hash { get; set; } = string.Empty;
 }
 
 [ProtoContract]

@@ -288,10 +288,7 @@ public class DatabaseConverterTests
                             ArraySize = 4  // ArraySize > 0 means it's an array
                         }
                     },
-                    UsedByNatives = new List<(string Name, string Hash)>
-                    {
-                        ("GET_ITEM", "0xABCD")
-                    }
+                    UsedByNatives = new List<string> { "0xABCD" }
                 }
             }
         };

@@ -21,6 +21,7 @@ public class StructRef
 public class NativeRef
 {
     public string Name { get; set; } = string.Empty;
+    public string? Game { get; set; }
 }
 
 public partial class MdxComponentParser
@@ -35,7 +36,8 @@ public partial class MdxComponentParser
     [GeneratedRegex(@"\[struct:\s*[""']?(\w+)[""']?\]", RegexOptions.IgnoreCase)]
     private static partial Regex StructAttributeRegex();
 
-    [GeneratedRegex(@"\[native:\s*[""']?([\w]+)[""']?\]", RegexOptions.IgnoreCase)]
+    // Native refs: [native: NAME] or [native: NAME | game]
+    [GeneratedRegex(@"\[native:\s*[""']?([\w]+)[""']?(?:\s*\|\s*(\w+))?\]", RegexOptions.IgnoreCase)]
     private static partial Regex NativeAttributeRegex();
 
     // Callout patterns: [note: Description] or [note: Title | Description]
@@ -114,8 +116,11 @@ public partial class MdxComponentParser
         foreach (Match match in NativeAttributeRegex().Matches(content))
         {
             var name = match.Groups[1].Value;
-            if (!results.Any(r => r.Name == name))
-                results.Add(new NativeRef { Name = name });
+            var game = match.Groups[2].Success ? match.Groups[2].Value : null;
+
+            // Check for duplicates (same name and game)
+            if (!results.Any(r => r.Name == name && r.Game == game))
+                results.Add(new NativeRef { Name = name, Game = game });
         }
 
         return results;

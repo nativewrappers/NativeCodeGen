@@ -110,6 +110,39 @@ public class MdxComponentParserTests
     }
 
     [Fact]
+    public void ParseNativeRefs_WithGame()
+    {
+        var content = "Similar to [native: GET_ENTITY_COORDS | gta5]";
+        var results = _parser.ParseNativeRefs(content);
+
+        Assert.Single(results);
+        Assert.Equal("GET_ENTITY_COORDS", results[0].Name);
+        Assert.Equal("gta5", results[0].Game);
+    }
+
+    [Fact]
+    public void ParseNativeRefs_WithoutGame()
+    {
+        var content = "See [native: GET_ENTITY_COORDS]";
+        var results = _parser.ParseNativeRefs(content);
+
+        Assert.Single(results);
+        Assert.Equal("GET_ENTITY_COORDS", results[0].Name);
+        Assert.Null(results[0].Game);
+    }
+
+    [Fact]
+    public void ParseNativeRefs_MixedWithAndWithoutGame()
+    {
+        var content = "Use [native: REQUEST_MODEL] or [native: REQUEST_MODEL | gta5]";
+        var results = _parser.ParseNativeRefs(content);
+
+        Assert.Equal(2, results.Count);
+        Assert.Contains(results, r => r.Name == "REQUEST_MODEL" && r.Game == null);
+        Assert.Contains(results, r => r.Name == "REQUEST_MODEL" && r.Game == "gta5");
+    }
+
+    [Fact]
     public void ParseCallouts_NoteWithoutTitle()
     {
         var content = "[note: This is a simple note]";

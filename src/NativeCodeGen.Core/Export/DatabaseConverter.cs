@@ -136,7 +136,10 @@ public static class DatabaseConverter
             {
                 Name = m.Name,
                 Value = m.Value
-            }).ToList()
+            }).ToList(),
+            UsedByNatives = enumDef.UsedByNatives.Count > 0
+                ? enumDef.UsedByNatives
+                : null
         };
     }
 
@@ -147,11 +150,7 @@ public static class DatabaseConverter
             Name = structDef.Name,
             DefaultAlignment = structDef.DefaultAlignment,
             UsedByNatives = structDef.UsedByNatives.Count > 0
-                ? structDef.UsedByNatives.Select(u => new ExportNativeReference
-                {
-                    Name = u.Name,
-                    Hash = u.Hash
-                }).ToList()
+                ? structDef.UsedByNatives
                 : null,
             Fields = structDef.Fields.Select(ConvertStructField).ToList()
         };
