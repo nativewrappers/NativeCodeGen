@@ -103,10 +103,10 @@ public static class TypeRegistry
         types["i16"] = new ExportTypeInfo { Category = ExportTypeCategory.Primitive, NativeType = "int", Description = "16-bit signed integer" };
         types["i32"] = new ExportTypeInfo { Category = ExportTypeCategory.Primitive, NativeType = "int", Description = "32-bit signed integer" };
         types["i64"] = new ExportTypeInfo { Category = ExportTypeCategory.Primitive, NativeType = "int", Description = "64-bit signed integer" };
-        types["u8"] = new ExportTypeInfo { Category = ExportTypeCategory.Primitive, NativeType = "int", Description = "8-bit unsigned integer" };
-        types["u16"] = new ExportTypeInfo { Category = ExportTypeCategory.Primitive, NativeType = "int", Description = "16-bit unsigned integer" };
-        types["u32"] = new ExportTypeInfo { Category = ExportTypeCategory.Primitive, NativeType = "int", Description = "32-bit unsigned integer" };
-        types["u64"] = new ExportTypeInfo { Category = ExportTypeCategory.Primitive, NativeType = "int", Description = "64-bit unsigned integer" };
+        types["u8"] = new ExportTypeInfo { Category = ExportTypeCategory.Primitive, NativeType = "uint", Description = "8-bit unsigned integer" };
+        types["u16"] = new ExportTypeInfo { Category = ExportTypeCategory.Primitive, NativeType = "uint", Description = "16-bit unsigned integer" };
+        types["u32"] = new ExportTypeInfo { Category = ExportTypeCategory.Primitive, NativeType = "uint", Description = "32-bit unsigned integer" };
+        types["u64"] = new ExportTypeInfo { Category = ExportTypeCategory.Primitive, NativeType = "uint", Description = "64-bit unsigned integer" };
 
         // Primitives - floats
         types["float"] = new ExportTypeInfo { Category = ExportTypeCategory.Primitive, NativeType = "float", Description = "32-bit floating point" };
@@ -115,13 +115,13 @@ public static class TypeRegistry
         types["f64"] = new ExportTypeInfo { Category = ExportTypeCategory.Primitive, NativeType = "float", Description = "64-bit floating point" };
 
         // Primitives - boolean
-        types["bool"] = new ExportTypeInfo { Category = ExportTypeCategory.Primitive, NativeType = "int", Description = "Boolean (0 or 1)" };
-        types["BOOL"] = new ExportTypeInfo { Category = ExportTypeCategory.Primitive, NativeType = "int", Description = "Boolean (0 or 1)" };
+        types["bool"] = new ExportTypeInfo { Category = ExportTypeCategory.Primitive, NativeType = "bool", Description = "true or false" };
+        types["BOOL"] = new ExportTypeInfo { Category = ExportTypeCategory.Primitive, NativeType = "bool", Description = "true or false" };
 
         // Special types
         types["void"] = new ExportTypeInfo { Category = ExportTypeCategory.Void, Description = "No return value" };
-        types["Any"] = new ExportTypeInfo { Category = ExportTypeCategory.Any, NativeType = "int", Description = "Any type (context-dependent)" };
-        types["Hash"] = new ExportTypeInfo { Category = ExportTypeCategory.Hash, NativeType = "int", Description = "32-bit hash value (joaat)" };
+        types["Any"] = new ExportTypeInfo { Category = ExportTypeCategory.Any, NativeType = "int", Description = "Used where the type is unknown, will be an int natively" };
+        types["Hash"] = new ExportTypeInfo { Category = ExportTypeCategory.Hash, NativeType = "uint", Description = "32-bit unsigned hash value (joaat)" };
         types["Vector3"] = new ExportTypeInfo { Category = ExportTypeCategory.Vector3, Description = "3D vector (x, y, z floats)" };
         types["string"] = new ExportTypeInfo { Category = ExportTypeCategory.String, Description = "Null-terminated string pointer" };
         types["char*"] = new ExportTypeInfo { Category = ExportTypeCategory.String, Description = "Null-terminated string pointer" };
