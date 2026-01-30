@@ -25,16 +25,7 @@
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
     <SelfContained>true</SelfContained>
 
-    <!-- Trimming to reduce binary size -->
-    <PublishTrimmed>true</PublishTrimmed>
-    <TrimMode>link</TrimMode>
-
   </PropertyGroup>
-
-  <!-- Preserve types for reflection-based libraries -->
-  <ItemGroup>
-    <TrimmerRootDescriptor Include="TrimmerRoots.xml" />
-  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="System.CommandLine" Version="2.0.0-beta4.22272.1" />
