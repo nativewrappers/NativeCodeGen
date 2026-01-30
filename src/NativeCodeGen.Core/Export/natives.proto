@@ -26,6 +26,28 @@ message Database {
   repeated Enum enums = 2;
   repeated Struct structs = 3;
   repeated SharedExample shared_examples = 4;
+  repeated TypeEntry types = 5;
+}
+
+enum TypeCategory {
+  TYPE_PRIMITIVE = 0;
+  TYPE_HANDLE = 1;
+  TYPE_HASH = 2;
+  TYPE_VECTOR3 = 3;
+  TYPE_STRING = 4;
+  TYPE_VOID = 5;
+  TYPE_ANY = 6;
+}
+
+message TypeInfo {
+  TypeCategory category = 1;
+  optional string native_type = 2;
+  optional string description = 3;
+}
+
+message TypeEntry {
+  string name = 1;
+  TypeInfo type = 2;
 }
 
 message Namespace {
@@ -71,7 +93,7 @@ message EnumMember {
 message Struct {
   string name = 1;
   repeated StructField fields = 2;
-  repeated NativeReference used_by_natives = 3;
+  repeated string used_by_natives = 3;
   optional int32 default_alignment = 4;
 }
 
@@ -83,11 +105,6 @@ message StructField {
   int32 array_size = 5;
   optional string nested_struct_name = 6;
   optional int32 alignment = 7;
-}
-
-message NativeReference {
-  string name = 1;
-  string hash = 2;
 }
 
 message SharedExample {
