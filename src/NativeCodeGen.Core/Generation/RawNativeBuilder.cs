@@ -391,7 +391,7 @@ public class RawNativeBuilder
         if (type.Category == TypeCategory.Vector3)
             return _config.Vector3Type;
 
-        return _typeMapper.MapType(type);
+        return _typeMapper.MapType(type, forReturn: true);
     }
 
     private string MapOutputType(TypeInfo type)

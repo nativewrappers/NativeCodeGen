@@ -120,7 +120,7 @@ public abstract class TypeMapperBase : ITypeMapper
         Config = config;
     }
 
-    public virtual string MapType(TypeInfo type, bool isNotNull = false)
+    public virtual string MapType(TypeInfo type, bool isNotNull = false, bool forReturn = false)
     {
         if (type.IsPointer)
         {
@@ -142,7 +142,8 @@ public abstract class TypeMapperBase : ITypeMapper
             TypeCategory.Handle => Config.UseTypedHandles && TypeInfo.IsClassHandle(type.Name)
                 ? (type.Name == "Object" ? "Prop" : type.Name)
                 : Config.NumberType,
-            TypeCategory.Hash => Config.HashType,
+            // Hash parameters accept string | number, but return type is always number
+            TypeCategory.Hash => forReturn ? Config.NumberType : Config.HashType,
             TypeCategory.String => isNotNull ? Config.StringType : Config.StringType + Config.NullableStringSuffix,
             TypeCategory.Vector2 => Config.Vector2Type,
             TypeCategory.Vector3 => Config.Vector3Type,
@@ -298,7 +299,7 @@ public abstract class TypeMapperBase : ITypeMapper
         // Helper to add nullable suffix for class handle return types
         string MapReturnType(TypeInfo type)
         {
-            var mapped = MapType(type);
+            var mapped = MapType(type, forReturn: true);
             // Class handle return types can be null (invalid handle returns 0)
             // Non-class handles (Prompt, ScrHandle) are just numbers
             if (type.Category == TypeCategory.Handle && Config.UseTypedHandles && TypeInfo.IsClassHandle(type.Name))
