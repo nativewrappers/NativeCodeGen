@@ -136,6 +136,12 @@ public class SharedClassGenerator
         _emitter.EmitHandleConstructor(cb, className, baseClass);
         _emitter.EmitFromHandleMethod(cb, className);
 
+        // Entity and its subclasses get fromNetworkId
+        if (className == "Entity" || NativeClassifier.EntitySubclasses.Contains(className))
+        {
+            _emitter.EmitFromNetworkIdMethod(cb, className);
+        }
+
         foreach (var native in natives)
         {
             GenerateInstanceMethod(cb, native, className);

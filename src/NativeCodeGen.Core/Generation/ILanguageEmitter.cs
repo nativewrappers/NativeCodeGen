@@ -89,6 +89,11 @@ public interface ILanguageEmitter
     void EmitFromHandleMethod(CodeBuilder cb, string className);
 
     /// <summary>
+    /// Emits a static fromNetworkId factory method for entity classes.
+    /// </summary>
+    void EmitFromNetworkIdMethod(CodeBuilder cb, string className);
+
+    /// <summary>
     /// Emits a constructor for a task class (takes entity).
     /// </summary>
     void EmitTaskConstructor(CodeBuilder cb, string className, string entityType, string? baseClass);

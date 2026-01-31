@@ -191,6 +191,21 @@ public class LuaEmitter : ILanguageEmitter
         cb.AppendLine();
     }
 
+    public void EmitFromNetworkIdMethod(CodeBuilder cb, string className)
+    {
+        cb.AppendLine($"---@param netId number");
+        cb.AppendLine($"---@return {className}|nil");
+        cb.AppendLine($"function {className}.fromNetworkId(netId)");
+        cb.Indent();
+        // NETWORK_DOES_ENTITY_EXIST_WITH_NETWORK_ID = 0x38CE16C96BD11F2C
+        // NETWORK_GET_ENTITY_FROM_NETWORK_ID = 0x5B912C3F653822E6
+        cb.AppendLine("if not Citizen.InvokeNative(0x38CE16C96BD11F2C, netId) then return nil end");
+        cb.AppendLine($"return {className}.fromHandle(Citizen.InvokeNative(0x5B912C3F653822E6, netId))");
+        cb.Dedent();
+        cb.AppendLine("end");
+        cb.AppendLine();
+    }
+
     public void EmitTaskConstructor(CodeBuilder cb, string className, string entityType, string? baseClass)
     {
         cb.AppendLine($"---@param entity {entityType}");

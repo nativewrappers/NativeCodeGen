@@ -256,6 +256,19 @@ public class TypeScriptEmitter : ILanguageEmitter
         cb.AppendLine();
     }
 
+    public void EmitFromNetworkIdMethod(CodeBuilder cb, string className)
+    {
+        cb.AppendLine($"static fromNetworkId(netId: number): {className} | null {{");
+        cb.Indent();
+        // NETWORK_DOES_ENTITY_EXIST_WITH_NETWORK_ID = 0x38CE16C96BD11F2C
+        // NETWORK_GET_ENTITY_FROM_NETWORK_ID = 0x5B912C3F653822E6
+        cb.AppendLine("if (!inv<number>('0x38CE16C96BD11F2C', netId, rai())) return null;");
+        cb.AppendLine($"return {className}.fromHandle(inv<number>('0x5B912C3F653822E6', netId, rai()));");
+        cb.Dedent();
+        cb.AppendLine("}");
+        cb.AppendLine();
+    }
+
     public void EmitTaskConstructor(CodeBuilder cb, string className, string entityType, string? baseClass)
     {
         if (baseClass == null)
