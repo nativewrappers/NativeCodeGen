@@ -75,14 +75,27 @@ public class TypeMapperTests
     [InlineData("Entity")]
     [InlineData("Ped")]
     [InlineData("Vehicle")]
-    [InlineData("Blip")]
     [InlineData("Cam")]
     [InlineData("Player")]
-    public void MapType_HandleTypes_ReturnsSameName(string typeName)
+    public void MapType_ClassHandles_ReturnsSameName(string typeName)
     {
         var typeInfo = TypeInfo.Parse(typeName);
         var result = _mapper.MapType(typeInfo);
         Assert.Equal(typeName, result);
+    }
+
+    [Theory]
+    [InlineData("Blip")]
+    [InlineData("ScrHandle")]
+    [InlineData("Prompt")]
+    [InlineData("FireId")]
+    [InlineData("PopZone")]
+    [InlineData("PedGroup")]
+    public void MapType_NonClassHandles_ReturnsNumber(string typeName)
+    {
+        var typeInfo = TypeInfo.Parse(typeName);
+        var result = _mapper.MapType(typeInfo);
+        Assert.Equal("number", result);
     }
 
     [Fact]

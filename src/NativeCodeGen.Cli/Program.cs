@@ -5,6 +5,7 @@ using NativeCodeGen.Core.Models;
 using NativeCodeGen.Core.Parsing;
 using NativeCodeGen.Core.Registry;
 using NativeCodeGen.Core.Utilities;
+using NativeCodeGen.Core.Validation;
 using NativeCodeGen.Lua;
 using NativeCodeGen.TypeScript;
 
@@ -300,6 +301,9 @@ class Program
         var allNatives = new ConcurrentBag<NativeDefinition>();
         var processedCount = 0;
 
+        // Create type validator for type resolution and validation
+        var typeValidator = new TypeValidator(enumRegistry, structRegistry);
+
         // Process files in parallel (CPU-bound parsing)
         Parallel.ForEach(mdxFiles, file =>
         {
@@ -316,12 +320,10 @@ class Program
 
                 if (result.Value != null)
                 {
-                    // Resolve enum types for parameters and return type
-                    foreach (var param in result.Value.Parameters)
-                    {
-                        param.Type.ResolveEnumType(enumRegistry.GetBaseType);
-                    }
-                    result.Value.ReturnType.ResolveEnumType(enumRegistry.GetBaseType);
+                    // Validate all types in the native definition
+                    var validationErrors = typeValidator.ValidateNative(result.Value, file);
+                    foreach (var error in validationErrors)
+                        allErrors.Add(error);
 
                     allNatives.Add(result.Value);
                 }

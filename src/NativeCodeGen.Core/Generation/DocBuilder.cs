@@ -80,6 +80,15 @@ public abstract class DocBuilder
 /// </summary>
 public class JsDocBuilder : DocBuilder
 {
+    /// <summary>
+    /// Escapes text that could break JSDoc comments (e.g., */ would close the comment prematurely).
+    /// </summary>
+    private static string EscapeJsDoc(string text)
+    {
+        // Replace */ with *\/ to prevent closing the JSDoc comment
+        return text.Replace("*/", "*\\/");
+    }
+
     public override void Render(CodeBuilder cb)
     {
         if (IsEmpty) return;
@@ -88,7 +97,7 @@ public class JsDocBuilder : DocBuilder
 
         foreach (var line in DescriptionLines)
         {
-            cb.AppendLine($" * {line}");
+            cb.AppendLine($" * {EscapeJsDoc(line)}");
         }
 
         if (DescriptionLines.Count > 0 && (Params.Count > 0 || Throws.Count > 0 || Return != null))
@@ -98,17 +107,17 @@ public class JsDocBuilder : DocBuilder
 
         foreach (var param in Params)
         {
-            cb.AppendLine($" * @param {param.Name} {param.Description}");
+            cb.AppendLine($" * @param {param.Name} {EscapeJsDoc(param.Description)}");
         }
 
         foreach (var throws in Throws)
         {
-            cb.AppendLine($" * @throws {{{throws.Type}}} {throws.Description}");
+            cb.AppendLine($" * @throws {{{throws.Type}}} {EscapeJsDoc(throws.Description)}");
         }
 
         if (Return != null)
         {
-            var desc = string.IsNullOrEmpty(Return.Description) ? "" : $" {Return.Description}";
+            var desc = string.IsNullOrEmpty(Return.Description) ? "" : $" {EscapeJsDoc(Return.Description)}";
             cb.AppendLine($" * @returns{desc}");
         }
 

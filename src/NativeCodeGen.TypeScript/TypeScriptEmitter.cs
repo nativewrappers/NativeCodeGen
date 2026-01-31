@@ -56,9 +56,32 @@ public class TypeScriptEmitter : ILanguageEmitter
         var types = handleTypes.OrderBy(t => t).ToList();
         if (types.Count == 0) return;
 
+        // Note: createFromHandle is imported by EmitClassStart for handle/namespace classes
         foreach (var handleType in types)
         {
-            cb.AppendLine($"import {{ {handleType} }} from '../classes/{handleType}';");
+            cb.AppendLine($"import type {{ {handleType} }} from '../classes/{handleType}';");
+        }
+    }
+
+    public void EmitNonClassHandleImports(CodeBuilder cb, IEnumerable<string> handleTypes)
+    {
+        var types = handleTypes.OrderBy(t => t).ToList();
+        if (types.Count == 0) return;
+
+        // Import non-class handles as type aliases from NativeAliases
+        var typeList = string.Join(", ", types);
+        cb.AppendLine($"import type {{ {typeList} }} from '../types/NativeAliases';");
+    }
+
+    public void EmitTypeImports(CodeBuilder cb, IEnumerable<string> enumTypes, IEnumerable<string> structTypes)
+    {
+        foreach (var enumType in enumTypes.OrderBy(t => t))
+        {
+            cb.AppendLine($"import type {{ {enumType} }} from '../enums/{enumType}';");
+        }
+        foreach (var structType in structTypes.OrderBy(t => t))
+        {
+            cb.AppendLine($"import {{ {structType} }} from '../structs/{structType}';");
         }
     }
 
@@ -69,67 +92,85 @@ public class TypeScriptEmitter : ILanguageEmitter
         RawNativeBuilder.EmitTypeScriptAliases(cb);
     }
 
+    // Common import constants
+    private const string VectorColorImports = """
+        import { Vector2 } from '../types/Vector2';
+        import { Vector3 } from '../types/Vector3';
+        import { Vector4 } from '../types/Vector4';
+        import { Color } from '../types/Color';
+        """;
+
+    private const string NativeAliasImport = "import { inv, rai, raf, ras, rav, pvi, pvf, pvv, pvii, pvfi, _h, f } from '../types/NativeAliases';";
+
+    private static void EmitVectorColorImports(CodeBuilder cb) =>
+        cb.AppendLine(VectorColorImports);
+
     public void EmitClassStart(CodeBuilder cb, string className, string? baseClass, ClassKind kind)
     {
+        EmitVectorColorImports(cb);
+
         switch (kind)
         {
             case ClassKind.Handle:
-                if (baseClass != null)
-                {
-                    cb.AppendLine("import { Vector3 } from '@nativewrappers/common';");
-                    cb.AppendLine($"import {{ {baseClass} }} from './{baseClass}';");
-                    cb.AppendLine();
-                    cb.AppendLine($"export class {className} extends {baseClass} {{");
-                }
+                if (baseClass == null)
+                    cb.AppendLine("import { IHandle } from '../types/IHandle';");
                 else
+                    cb.AppendLine($"import {{ {baseClass} }} from './{baseClass}';");
+                cb.AppendLine("import { registerHandle, createFromHandle } from '../types/HandleRegistry';");
+                cb.AppendLine(NativeAliasImport);
+                if (className == "Ped")
                 {
-                    cb.AppendLine("import { IHandle, Vector3 } from '@nativewrappers/common';");
-                    cb.AppendLine();
-                    cb.AppendLine($"export class {className} implements IHandle {{");
+                    cb.AppendLine("import { PedTask } from './PedTask';");
+                    cb.AppendLine("import { Weapon } from './Weapon';");
                 }
+                else if (className == "Vehicle")
+                {
+                    cb.AppendLine("import { VehicleTask } from './VehicleTask';");
+                }
+                cb.AppendLine();
+                cb.AppendLine(baseClass != null
+                    ? $"export class {className} extends {baseClass} {{"
+                    : $"export class {className} implements IHandle {{");
                 cb.Indent();
                 break;
 
             case ClassKind.Task:
                 var entityType = NativeClassifier.GetTaskEntityType(className);
-                cb.AppendLine("import { Vector3 } from '@nativewrappers/common';");
                 if (baseClass != null)
-                {
                     cb.AppendLine($"import {{ {baseClass} }} from './{baseClass}';");
-                }
-                cb.AppendLine($"import {{ {entityType} }} from './{entityType}';");
+                cb.AppendLine($"import type {{ {entityType} }} from './{entityType}';");
+                cb.AppendLine("import { createFromHandle } from '../types/HandleRegistry';");
+                cb.AppendLine(NativeAliasImport);
                 cb.AppendLine();
-                if (baseClass != null)
-                {
-                    cb.AppendLine($"export class {className} extends {baseClass} {{");
-                }
-                else
-                {
-                    cb.AppendLine($"export class {className} {{");
-                }
+                cb.AppendLine(baseClass != null
+                    ? $"export class {className} extends {baseClass} {{"
+                    : $"export class {className} {{");
                 cb.Indent();
                 break;
 
             case ClassKind.Model:
-                cb.AppendLine("import { Vector3 } from '@nativewrappers/common';");
                 if (baseClass != null)
-                {
                     cb.AppendLine($"import {{ {baseClass} }} from './{baseClass}';");
-                }
+                cb.AppendLine(NativeAliasImport);
                 cb.AppendLine();
-                if (baseClass != null)
-                {
-                    cb.AppendLine($"export class {className} extends {baseClass} {{");
-                }
-                else
-                {
-                    cb.AppendLine($"export class {className} {{");
-                }
+                cb.AppendLine(baseClass != null
+                    ? $"export class {className} extends {baseClass} {{"
+                    : $"export class {className} {{");
+                cb.Indent();
+                break;
+
+            case ClassKind.Weapon:
+                cb.AppendLine("import type { Ped } from './Ped';");
+                cb.AppendLine("import { createFromHandle } from '../types/HandleRegistry';");
+                cb.AppendLine(NativeAliasImport);
+                cb.AppendLine();
+                cb.AppendLine($"export class {className} {{");
                 cb.Indent();
                 break;
 
             case ClassKind.Namespace:
-                cb.AppendLine("import { Vector3 } from '@nativewrappers/common';");
+                cb.AppendLine("import { createFromHandle } from '../types/HandleRegistry';");
+                cb.AppendLine(NativeAliasImport);
                 cb.AppendLine();
                 cb.AppendLine($"export class {className} {{");
                 cb.Indent();
@@ -137,10 +178,63 @@ public class TypeScriptEmitter : ILanguageEmitter
         }
     }
 
-    public void EmitClassEnd(CodeBuilder cb, string className)
+    public void EmitClassEnd(CodeBuilder cb, string className, ClassKind kind)
     {
+        // Add special accessors before closing the class
+        if (kind == ClassKind.Handle && className == "Ped")
+        {
+            cb.AppendLine();
+            cb.AppendLine("private _task?: PedTask;");
+            cb.AppendLine("private _weapon?: Weapon;");
+            cb.AppendLine();
+            cb.AppendLine("get task(): PedTask {");
+            cb.Indent();
+            cb.AppendLine("if (!this._task) {");
+            cb.Indent();
+            cb.AppendLine("this._task = new PedTask(this);");
+            cb.Dedent();
+            cb.AppendLine("}");
+            cb.AppendLine("return this._task;");
+            cb.Dedent();
+            cb.AppendLine("}");
+            cb.AppendLine();
+            cb.AppendLine("get weapon(): Weapon {");
+            cb.Indent();
+            cb.AppendLine("if (!this._weapon) {");
+            cb.Indent();
+            cb.AppendLine("this._weapon = new Weapon(this);");
+            cb.Dedent();
+            cb.AppendLine("}");
+            cb.AppendLine("return this._weapon;");
+            cb.Dedent();
+            cb.AppendLine("}");
+        }
+        else if (kind == ClassKind.Handle && className == "Vehicle")
+        {
+            cb.AppendLine();
+            cb.AppendLine("private _task?: VehicleTask;");
+            cb.AppendLine();
+            cb.AppendLine("get task(): VehicleTask {");
+            cb.Indent();
+            cb.AppendLine("if (!this._task) {");
+            cb.Indent();
+            cb.AppendLine("this._task = new VehicleTask(this);");
+            cb.Dedent();
+            cb.AppendLine("}");
+            cb.AppendLine("return this._task;");
+            cb.Dedent();
+            cb.AppendLine("}");
+        }
+
         cb.Dedent();
         cb.AppendLine("}");
+
+        // Register handle classes with the factory
+        if (kind == ClassKind.Handle)
+        {
+            cb.AppendLine();
+            cb.AppendLine($"registerHandle('{className}', {className});");
+        }
     }
 
     public void EmitHandleConstructor(CodeBuilder cb, string className, string? baseClass)
@@ -162,25 +256,57 @@ public class TypeScriptEmitter : ILanguageEmitter
         cb.AppendLine();
     }
 
-    public void EmitTaskConstructor(CodeBuilder cb, string className, string entityType)
+    public void EmitTaskConstructor(CodeBuilder cb, string className, string entityType, string? baseClass)
     {
-        cb.AppendLine($"protected entity: {entityType};");
-        cb.AppendLine();
+        if (baseClass == null)
+        {
+            cb.AppendLine($"protected entity: {entityType};");
+            cb.AppendLine();
+        }
         cb.AppendLine($"constructor(entity: {entityType}) {{");
         cb.Indent();
-        cb.AppendLine("this.entity = entity;");
+        if (baseClass != null)
+        {
+            cb.AppendLine("super(entity);");
+        }
+        else
+        {
+            cb.AppendLine("this.entity = entity;");
+        }
         cb.Dedent();
         cb.AppendLine("}");
         cb.AppendLine();
     }
 
-    public void EmitModelConstructor(CodeBuilder cb, string className)
+    public void EmitModelConstructor(CodeBuilder cb, string className, string? baseClass)
     {
-        cb.AppendLine("protected hash: number;");
-        cb.AppendLine();
+        if (baseClass == null)
+        {
+            cb.AppendLine("protected hash: number;");
+            cb.AppendLine();
+        }
         cb.AppendLine("constructor(hash: number) {");
         cb.Indent();
-        cb.AppendLine("this.hash = hash;");
+        if (baseClass != null)
+        {
+            cb.AppendLine("super(hash);");
+        }
+        else
+        {
+            cb.AppendLine("this.hash = hash;");
+        }
+        cb.Dedent();
+        cb.AppendLine("}");
+        cb.AppendLine();
+    }
+
+    public void EmitWeaponConstructor(CodeBuilder cb, string className)
+    {
+        cb.AppendLine("protected ped: Ped;");
+        cb.AppendLine();
+        cb.AppendLine("constructor(ped: Ped) {");
+        cb.Indent();
+        cb.AppendLine("this.ped = ped;");
         cb.Dedent();
         cb.AppendLine("}");
         cb.AppendLine();
@@ -191,7 +317,14 @@ public class TypeScriptEmitter : ILanguageEmitter
     public void EmitMethodStart(CodeBuilder cb, string className, string methodName, List<MethodParameter> parameters, string returnType, MethodKind kind)
     {
         var paramString = string.Join(", ", parameters.Select(p =>
-            $"{p.Name}{(p.IsOptional ? "?" : "")}: {p.Type}"));
+        {
+            // Rest parameters (starting with ...) need array type - use any[] since variadic can accept multiple types
+            if (p.Name.StartsWith("..."))
+            {
+                return $"{p.Name}: any[]";
+            }
+            return $"{p.Name}{(p.IsOptional ? "?" : "")}: {p.Type}";
+        }));
 
         var staticKeyword = kind == MethodKind.Static ? "static " : "";
         cb.AppendLine($"{staticKeyword}{methodName}({paramString}): {returnType} {{");
@@ -229,10 +362,10 @@ public class TypeScriptEmitter : ILanguageEmitter
             {
                 invokeExpr = $"Vector3.fromArray({invokeExpr})";
             }
-            else if (_typeMapper.IsHandleType(returnType))
+            else if (_typeMapper.IsHandleType(returnType) && TypeInfo.IsClassHandle(returnType.Name))
             {
                 var handleClass = NativeClassifier.NormalizeHandleType(returnType.Name);
-                invokeExpr = $"{handleClass}.fromHandle({invokeExpr})";
+                invokeExpr = $"createFromHandle<{handleClass}>('{handleClass}', {invokeExpr})";
             }
             else if (returnType.Category == TypeCategory.Hash)
             {
@@ -251,8 +384,16 @@ public class TypeScriptEmitter : ILanguageEmitter
         }
 
         // With output params, we need to return a tuple
-        // The invoke returns [retValue?, outParam1, outParam2, ...]
+        // The invoke returns [retValue?, outParam1, outParam2, ...] when multiple values
+        // Or just the single value directly when only 1 return value
         cb.AppendLine($"const result = {invokeExpr};");
+
+        // Count total values to determine if result is array or single value
+        var totalValues = (returnType.Category != TypeCategory.Void ? 1 : 0) + outputParamTypes.Count;
+        var isSingleValue = totalValues == 1;
+
+        // Helper to get the result access expression
+        string GetResultAccess(int index) => isSingleValue ? "result" : $"result[{index}]";
 
         // Build the return tuple with proper type conversions
         var returnParts = new List<string>();
@@ -263,24 +404,24 @@ public class TypeScriptEmitter : ILanguageEmitter
         {
             if (_typeMapper.IsVector3(returnType))
             {
-                returnParts.Add($"Vector3.fromArray(result[{resultIndex}])");
+                returnParts.Add($"Vector3.fromArray({GetResultAccess(resultIndex)})");
             }
-            else if (_typeMapper.IsHandleType(returnType))
+            else if (_typeMapper.IsHandleType(returnType) && TypeInfo.IsClassHandle(returnType.Name))
             {
                 var handleClass = NativeClassifier.NormalizeHandleType(returnType.Name);
-                returnParts.Add($"{handleClass}.fromHandle(result[{resultIndex}])");
+                returnParts.Add($"createFromHandle<{handleClass}>('{handleClass}', {GetResultAccess(resultIndex)})");
             }
-            else if (returnType.Name is "BOOL" or "bool")
+            else if (returnType.IsBool)
             {
-                returnParts.Add($"!!result[{resultIndex}]");
+                returnParts.Add($"!!{GetResultAccess(resultIndex)}");
             }
             else if (returnType.Category == TypeCategory.Hash)
             {
-                returnParts.Add($"result[{resultIndex}] & 0xFFFFFFFF");
+                returnParts.Add($"{GetResultAccess(resultIndex)} & 0xFFFFFFFF");
             }
             else
             {
-                returnParts.Add($"result[{resultIndex}]");
+                returnParts.Add(GetResultAccess(resultIndex));
             }
             resultIndex++;
         }
@@ -290,20 +431,20 @@ public class TypeScriptEmitter : ILanguageEmitter
         {
             if (outputType.Category == TypeCategory.Vector3 || outputType.Name == "Vector3")
             {
-                returnParts.Add($"Vector3.fromArray(result[{resultIndex}])");
+                returnParts.Add($"Vector3.fromArray({GetResultAccess(resultIndex)})");
             }
-            else if (outputType.Category == TypeCategory.Handle)
+            else if (outputType.Category == TypeCategory.Handle && TypeInfo.IsClassHandle(outputType.Name))
             {
                 var handleClass = NativeClassifier.NormalizeHandleType(outputType.Name);
-                returnParts.Add($"{handleClass}.fromHandle(result[{resultIndex}])");
+                returnParts.Add($"createFromHandle<{handleClass}>('{handleClass}', {GetResultAccess(resultIndex)})");
             }
-            else if (outputType.Name is "BOOL" or "bool")
+            else if (outputType.IsBool)
             {
-                returnParts.Add($"!!result[{resultIndex}]");
+                returnParts.Add($"!!{GetResultAccess(resultIndex)}");
             }
             else
             {
-                returnParts.Add($"result[{resultIndex}]");
+                returnParts.Add(GetResultAccess(resultIndex));
             }
             resultIndex++;
         }
@@ -383,14 +524,9 @@ public class TypeScriptEmitter : ILanguageEmitter
         cb.AppendLine($"get {fieldName}(): {tsType} {{");
         cb.Indent();
 
-        if (type.Name == "bool" || type.Name == "BOOL")
-        {
-            cb.AppendLine($"return this.view.{getMethod}({offset}) !== 0;");
-        }
-        else
-        {
-            cb.AppendLine($"return this.view.{getMethod}({offset}{endianArg});");
-        }
+        cb.AppendLine(type.IsBool
+            ? $"return this.view.{getMethod}({offset}) !== 0;"
+            : $"return this.view.{getMethod}({offset}{endianArg});");
 
         cb.Dedent();
         cb.AppendLine("}");
@@ -405,14 +541,9 @@ public class TypeScriptEmitter : ILanguageEmitter
         cb.AppendLine($"set {fieldName}(value: {tsType}) {{");
         cb.Indent();
 
-        if (type.Name == "bool" || type.Name == "BOOL")
-        {
-            cb.AppendLine($"this.view.{setMethod}({offset}, value ? 1 : 0);");
-        }
-        else
-        {
-            cb.AppendLine($"this.view.{setMethod}({offset}, value{endianArg});");
-        }
+        cb.AppendLine(type.IsBool
+            ? $"this.view.{setMethod}({offset}, value ? 1 : 0);"
+            : $"this.view.{setMethod}({offset}, value{endianArg});");
 
         cb.Dedent();
         cb.AppendLine("}");
@@ -435,14 +566,9 @@ public class TypeScriptEmitter : ILanguageEmitter
         cb.Indent();
         cb.AppendLine($"if (index < 0 || index >= {arraySize}) throw new RangeError('Index out of bounds');");
 
-        if (type.Name == "bool" || type.Name == "BOOL")
-        {
-            cb.AppendLine($"return this.view.{getMethod}({offset} + index * {elementSize}) !== 0;");
-        }
-        else
-        {
-            cb.AppendLine($"return this.view.{getMethod}({offset} + index * {elementSize}{endianArg});");
-        }
+        cb.AppendLine(type.IsBool
+            ? $"return this.view.{getMethod}({offset} + index * {elementSize}) !== 0;"
+            : $"return this.view.{getMethod}({offset} + index * {elementSize}{endianArg});");
 
         cb.Dedent();
         cb.AppendLine("}");
@@ -464,14 +590,9 @@ public class TypeScriptEmitter : ILanguageEmitter
         cb.Indent();
         cb.AppendLine($"if (index < 0 || index >= {arraySize}) throw new RangeError('Index out of bounds');");
 
-        if (type.Name == "bool" || type.Name == "BOOL")
-        {
-            cb.AppendLine($"this.view.{setMethod}({offset} + index * {elementSize}, value ? 1 : 0);");
-        }
-        else
-        {
-            cb.AppendLine($"this.view.{setMethod}({offset} + index * {elementSize}, value{endianArg});");
-        }
+        cb.AppendLine(type.IsBool
+            ? $"this.view.{setMethod}({offset} + index * {elementSize}, value ? 1 : 0);"
+            : $"this.view.{setMethod}({offset} + index * {elementSize}, value{endianArg});");
 
         cb.Dedent();
         cb.AppendLine("}");

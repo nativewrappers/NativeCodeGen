@@ -14,7 +14,10 @@ public record LanguageConfig
     public required string BooleanType { get; init; }
     public required string StringType { get; init; }
     public required string NullableStringSuffix { get; init; }  // "| null" or "|nil"
+    public required string Vector2Type { get; init; }
     public required string Vector3Type { get; init; }
+    public required string Vector4Type { get; init; }
+    public required string ColorType { get; init; }
     public required string AnyType { get; init; }
     public required string NullableSuffix { get; init; }  // " | null" or "|nil"
     public required string HashType { get; init; }  // "string | number" or "number"
@@ -47,7 +50,10 @@ public record LanguageConfig
         BooleanType = "boolean",
         StringType = "string",
         NullableStringSuffix = " | null",
+        Vector2Type = "Vector2",
         Vector3Type = "Vector3",
+        Vector4Type = "Vector4",
+        ColorType = "Color",
         AnyType = "any",
         NullableSuffix = " | null",
         HashType = "string | number",
@@ -64,7 +70,7 @@ public record LanguageConfig
         PointerIntInitAlias = "pvii",
         PointerFloatInitAlias = "pvfi",
         FloatWrapperAlias = "f",
-        HashWrapperAlias = "h",
+        HashWrapperAlias = "_h",
         UseFloatWrapper = true,
         UseHashWrapper = true
     };
@@ -76,7 +82,10 @@ public record LanguageConfig
         BooleanType = "boolean",
         StringType = "string",
         NullableStringSuffix = "|nil",
+        Vector2Type = "vector2",
         Vector3Type = "vector3",
+        Vector4Type = "vector4",
+        ColorType = "Color",
         AnyType = "any",
         NullableSuffix = "|nil",
         HashType = "string|number",
@@ -93,7 +102,7 @@ public record LanguageConfig
         PointerIntInitAlias = "pvii",
         PointerFloatInitAlias = "pvfi",
         FloatWrapperAlias = "f",
-        HashWrapperAlias = "h",
+        HashWrapperAlias = "_h",
         UseFloatWrapper = false,
         UseHashWrapper = true
     };
@@ -130,12 +139,15 @@ public abstract class TypeMapperBase : ITypeMapper
         {
             TypeCategory.Void => Config.VoidType,
             TypeCategory.Primitive => MapPrimitive(type.Name),
-            TypeCategory.Handle => Config.UseTypedHandles
+            TypeCategory.Handle => Config.UseTypedHandles && TypeInfo.IsClassHandle(type.Name)
                 ? (type.Name == "Object" ? "Prop" : type.Name)
                 : Config.NumberType,
             TypeCategory.Hash => Config.HashType,
             TypeCategory.String => isNotNull ? Config.StringType : Config.StringType + Config.NullableStringSuffix,
+            TypeCategory.Vector2 => Config.Vector2Type,
             TypeCategory.Vector3 => Config.Vector3Type,
+            TypeCategory.Vector4 => Config.Vector4Type,
+            TypeCategory.Color => Config.ColorType,
             TypeCategory.Any => Config.AnyType,
             TypeCategory.Struct => type.Name,
             // Enums: use the enum name as type (will be defined in generated code)
@@ -181,10 +193,7 @@ public abstract class TypeMapperBase : ITypeMapper
         {
             TypeCategory.Vector3 => $"{Config.ResultAsVectorAlias}()",
             TypeCategory.String => $"{Config.ResultAsStringAlias}()",
-            TypeCategory.Primitive when type.Name is "float" or "double" or "f32" or "f64" => $"{Config.ResultAsFloatAlias}()",
-            TypeCategory.Primitive when type.Name is "BOOL" or "bool" => $"{Config.ResultAsIntAlias}()",
-            TypeCategory.Handle => $"{Config.ResultAsIntAlias}()",
-            TypeCategory.Hash => $"{Config.ResultAsIntAlias}()",
+            TypeCategory.Primitive when type.IsFloat => $"{Config.ResultAsFloatAlias}()",
             _ => $"{Config.ResultAsIntAlias}()"
         };
     }
@@ -209,7 +218,7 @@ public abstract class TypeMapperBase : ITypeMapper
             TypeCategory.Void => Config.VoidType,
             TypeCategory.Vector3 => Config == LanguageConfig.TypeScript ? "number[]" : Config.Vector3Type,
             TypeCategory.String => Config.StringType,
-            TypeCategory.Primitive when type.Name is "BOOL" or "bool" => Config.BooleanType,
+            TypeCategory.Primitive when type.IsBool => Config.BooleanType,
             _ => Config.NumberType
         };
     }
@@ -217,15 +226,9 @@ public abstract class TypeMapperBase : ITypeMapper
     public virtual string GetPointerPlaceholder(TypeInfo type)
     {
         if (type.Category == TypeCategory.Vector3 || type.Name == "Vector3")
-        {
             return $"{Config.PointerVectorAlias}()";
-        }
 
-        return type.Name switch
-        {
-            "float" or "f32" or "f64" or "double" => $"{Config.PointerFloatAlias}()",
-            _ => $"{Config.PointerIntAlias}()"
-        };
+        return type.IsFloat ? $"{Config.PointerFloatAlias}()" : $"{Config.PointerIntAlias}()";
     }
 
     public virtual string GetInitializedPointerFormat(TypeInfo type)
@@ -238,17 +241,15 @@ public abstract class TypeMapperBase : ITypeMapper
         if (type.Category == TypeCategory.Vector3 || type.Name == "Vector3")
         {
             // Vector3 expands to 3 floats: x, y, z - wrapped with f() for float safety if needed
-            if (useFloat)
-                return $"{pvfi}({f}({{0}}.x)), {pvfi}({f}({{0}}.y)), {pvfi}({f}({{0}}.z))";
-            else
-                return $"{pvfi}({{0}}.x), {pvfi}({{0}}.y), {pvfi}({{0}}.z)";
+            return useFloat
+                ? $"{pvfi}({f}({{0}}.x)), {pvfi}({f}({{0}}.y)), {pvfi}({f}({{0}}.z))"
+                : $"{pvfi}({{0}}.x), {pvfi}({{0}}.y), {pvfi}({{0}}.z)";
         }
 
-        return type.Name switch
-        {
-            "float" or "f32" or "f64" or "double" => useFloat ? $"{pvfi}({f}({{0}}))" : $"{pvfi}({{0}})",
-            _ => $"{pvii}({{0}})"
-        };
+        if (type.IsFloat)
+            return useFloat ? $"{pvfi}({f}({{0}}))" : $"{pvfi}({{0}})";
+
+        return $"{pvii}({{0}})";
     }
 
     public virtual (string LanguageType, string GetMethod, string SetMethod) GetDataViewAccessor(TypeInfo type)
@@ -285,21 +286,31 @@ public abstract class TypeMapperBase : ITypeMapper
                 : Config.NumberType;
         }
 
-        return type.Name switch
-        {
-            "float" or "f32" or "f64" or "double" => Config.NumberType,
-            "BOOL" or "bool" => Config.BooleanType,
-            _ => Config.NumberType
-        };
+        if (type.IsFloat) return Config.NumberType;
+        if (type.IsBool) return Config.BooleanType;
+        return Config.NumberType;
     }
 
     public virtual string BuildCombinedReturnType(TypeInfo returnType, IEnumerable<TypeInfo> outputParamTypes)
     {
         var outputTypes = outputParamTypes.ToList();
 
+        // Helper to add nullable suffix for class handle return types
+        string MapReturnType(TypeInfo type)
+        {
+            var mapped = MapType(type);
+            // Class handle return types can be null (invalid handle returns 0)
+            // Non-class handles (Prompt, ScrHandle) are just numbers
+            if (type.Category == TypeCategory.Handle && Config.UseTypedHandles && TypeInfo.IsClassHandle(type.Name))
+            {
+                return mapped + Config.NullableSuffix;
+            }
+            return mapped;
+        }
+
         if (outputTypes.Count == 0)
         {
-            return MapType(returnType);
+            return MapReturnType(returnType);
         }
 
         if (outputTypes.Count == 1 && returnType.Category == TypeCategory.Void)
@@ -311,7 +322,7 @@ public abstract class TypeMapperBase : ITypeMapper
 
         if (returnType.Category != TypeCategory.Void)
         {
-            tupleTypes.Add(MapType(returnType));
+            tupleTypes.Add(MapReturnType(returnType));
         }
 
         foreach (var outputType in outputTypes)

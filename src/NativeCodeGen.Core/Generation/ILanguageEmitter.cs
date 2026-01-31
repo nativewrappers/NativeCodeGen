@@ -54,9 +54,19 @@ public interface ILanguageEmitter
     // === Class Generation ===
 
     /// <summary>
-    /// Emits imports for handle types used in a namespace class.
+    /// Emits imports for handle types (class handles) used in a namespace class.
     /// </summary>
     void EmitHandleImports(CodeBuilder cb, IEnumerable<string> handleTypes);
+
+    /// <summary>
+    /// Emits imports for non-class handle types (ScrHandle, Prompt, FireId, etc.).
+    /// </summary>
+    void EmitNonClassHandleImports(CodeBuilder cb, IEnumerable<string> handleTypes);
+
+    /// <summary>
+    /// Emits imports for enum and struct types used in a class.
+    /// </summary>
+    void EmitTypeImports(CodeBuilder cb, IEnumerable<string> enumTypes, IEnumerable<string> structTypes);
 
     /// <summary>
     /// Emits the start of a class definition.
@@ -66,7 +76,7 @@ public interface ILanguageEmitter
     /// <summary>
     /// Emits the end of a class definition.
     /// </summary>
-    void EmitClassEnd(CodeBuilder cb, string className);
+    void EmitClassEnd(CodeBuilder cb, string className, ClassKind kind);
 
     /// <summary>
     /// Emits a constructor for a handle-based class.
@@ -81,12 +91,17 @@ public interface ILanguageEmitter
     /// <summary>
     /// Emits a constructor for a task class (takes entity).
     /// </summary>
-    void EmitTaskConstructor(CodeBuilder cb, string className, string entityType);
+    void EmitTaskConstructor(CodeBuilder cb, string className, string entityType, string? baseClass);
 
     /// <summary>
     /// Emits a constructor for a model class (takes hash).
     /// </summary>
-    void EmitModelConstructor(CodeBuilder cb, string className);
+    void EmitModelConstructor(CodeBuilder cb, string className, string? baseClass);
+
+    /// <summary>
+    /// Emits a constructor for a weapon class (takes ped).
+    /// </summary>
+    void EmitWeaponConstructor(CodeBuilder cb, string className);
 
     // === Method Generation ===
 
@@ -170,6 +185,8 @@ public enum ClassKind
     Task,
     /// <summary>Model class that wraps a hash</summary>
     Model,
+    /// <summary>Weapon class that wraps a ped</summary>
+    Weapon,
     /// <summary>Namespace utility class with static methods</summary>
     Namespace
 }

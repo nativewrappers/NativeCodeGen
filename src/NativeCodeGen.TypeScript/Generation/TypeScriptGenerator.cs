@@ -196,7 +196,11 @@ public class TypeScriptGenerator : ICodeGenerator
                 "build": "tsc",
                 "prepublishOnly": "npm run build"
               },
+              "peerDependencies": {
+                "@nativewrappers/common": ">=0.0.1"
+              },
               "devDependencies": {
+                "@nativewrappers/common": ">=0.0.1",
                 "typescript": "^5.0.0"
               },
               "keywords": [
@@ -377,7 +381,9 @@ public class TypeScriptGenerator : ICodeGenerator
 
         cb.AppendLine("// Types");
         cb.AppendLine("export { IHandle } from './types/IHandle';");
+        cb.AppendLine("export { Vector2 } from './types/Vector2';");
         cb.AppendLine("export { Vector3 } from './types/Vector3';");
+        cb.AppendLine("export { Color } from './types/Color';");
         cb.AppendLine("export { BufferedClass } from './types/BufferedClass';");
         cb.AppendLine();
 
@@ -488,6 +494,49 @@ public class TypeScriptGenerator : ICodeGenerator
             }
             """);
 
+        File.WriteAllText(Path.Combine(typesDir, "Vector2.ts"), """
+            export class Vector2 {
+              constructor(
+                public x: number = 0,
+                public y: number = 0
+              ) {}
+
+              static fromArray(arr: number[]): Vector2 {
+                return new Vector2(arr[0], arr[1]);
+              }
+
+              toArray(): [number, number] {
+                return [this.x, this.y];
+              }
+
+              add(other: Vector2): Vector2 {
+                return new Vector2(this.x + other.x, this.y + other.y);
+              }
+
+              subtract(other: Vector2): Vector2 {
+                return new Vector2(this.x - other.x, this.y - other.y);
+              }
+
+              multiply(scalar: number): Vector2 {
+                return new Vector2(this.x * scalar, this.y * scalar);
+              }
+
+              length(): number {
+                return Math.sqrt(this.x * this.x + this.y * this.y);
+              }
+
+              normalize(): Vector2 {
+                const len = this.length();
+                if (len === 0) return new Vector2();
+                return this.multiply(1 / len);
+              }
+
+              distance(other: Vector2): number {
+                return this.subtract(other).length();
+              }
+            }
+            """);
+
         File.WriteAllText(Path.Combine(typesDir, "Vector3.ts"), """
             export class Vector3 {
               constructor(
@@ -496,7 +545,7 @@ public class TypeScriptGenerator : ICodeGenerator
                 public z: number = 0
               ) {}
 
-              static fromArray(arr: [number, number, number]): Vector3 {
+              static fromArray(arr: number[]): Vector3 {
                 return new Vector3(arr[0], arr[1], arr[2]);
               }
 
@@ -532,7 +581,141 @@ public class TypeScriptGenerator : ICodeGenerator
             }
             """);
 
+        File.WriteAllText(Path.Combine(typesDir, "Vector4.ts"), """
+            export class Vector4 {
+              constructor(
+                public x: number = 0,
+                public y: number = 0,
+                public z: number = 0,
+                public w: number = 0
+              ) {}
+
+              static fromArray(arr: number[]): Vector4 {
+                return new Vector4(arr[0], arr[1], arr[2], arr[3]);
+              }
+
+              toArray(): [number, number, number, number] {
+                return [this.x, this.y, this.z, this.w];
+              }
+
+              add(other: Vector4): Vector4 {
+                return new Vector4(this.x + other.x, this.y + other.y, this.z + other.z, this.w + other.w);
+              }
+
+              subtract(other: Vector4): Vector4 {
+                return new Vector4(this.x - other.x, this.y - other.y, this.z - other.z, this.w - other.w);
+              }
+
+              multiply(scalar: number): Vector4 {
+                return new Vector4(this.x * scalar, this.y * scalar, this.z * scalar, this.w * scalar);
+              }
+
+              length(): number {
+                return Math.sqrt(this.x * this.x + this.y * this.y + this.z * this.z + this.w * this.w);
+              }
+
+              normalize(): Vector4 {
+                const len = this.length();
+                if (len === 0) return new Vector4();
+                return this.multiply(1 / len);
+              }
+
+              distance(other: Vector4): number {
+                return this.subtract(other).length();
+              }
+            }
+            """);
+
+        File.WriteAllText(Path.Combine(typesDir, "Color.ts"), """
+            export class Color {
+              constructor(
+                public r: number = 0,
+                public g: number = 0,
+                public b: number = 0,
+                public a: number = 255
+              ) {}
+
+              static fromRgb(r: number, g: number, b: number): Color {
+                return new Color(r, g, b, 255);
+              }
+
+              static fromRgba(r: number, g: number, b: number, a: number): Color {
+                return new Color(r, g, b, a);
+              }
+
+              static fromHex(hex: string): Color {
+                const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})?$/i.exec(hex);
+                if (!result) return new Color();
+                return new Color(
+                  parseInt(result[1], 16),
+                  parseInt(result[2], 16),
+                  parseInt(result[3], 16),
+                  result[4] ? parseInt(result[4], 16) : 255
+                );
+              }
+
+              toHex(): string {
+                const toHex = (n: number) => n.toString(16).padStart(2, '0');
+                return `#${toHex(this.r)}${toHex(this.g)}${toHex(this.b)}${this.a < 255 ? toHex(this.a) : ''}`;
+              }
+            }
+            """);
+
         File.WriteAllText(Path.Combine(typesDir, "BufferedClass.ts"), GenerateBufferedClassBase());
+
+        File.WriteAllText(Path.Combine(typesDir, "HandleRegistry.ts"), """
+            type HandleConstructor<T> = { fromHandle(handle: number): T | null };
+
+            const registry = new Map<string, HandleConstructor<unknown>>();
+
+            export function registerHandle<T>(name: string, ctor: HandleConstructor<T>): void {
+              registry.set(name, ctor);
+            }
+
+            export function createFromHandle<T>(name: string, handle: number): T | null {
+              const ctor = registry.get(name) as HandleConstructor<T> | undefined;
+              return ctor ? ctor.fromHandle(handle) : null;
+            }
+            """);
+
+        File.WriteAllText(Path.Combine(typesDir, "NativeAliases.ts"), """
+            // CFX runtime globals - these are provided by the FiveM/RedM runtime
+            declare const Citizen: {
+                invokeNative<T = void>(hash: string, ...args: any[]): T;
+                resultAsInteger(): any;
+                resultAsFloat(): any;
+                resultAsString(): any;
+                resultAsVector(): any;
+                pointerValueInt(): any;
+                pointerValueFloat(): any;
+                pointerValueVector(): any;
+                pointerValueIntInitialized(value: number): any;
+                pointerValueFloatInitialized(value: number): any;
+            };
+            // GetHashKey accepts string|number since hashes can be pre-computed
+            declare function GetHashKey(str: string | number): number;
+
+            export const inv = Citizen.invokeNative;
+            export const rai = Citizen.resultAsInteger;
+            export const raf = Citizen.resultAsFloat;
+            export const ras = Citizen.resultAsString;
+            export const rav = Citizen.resultAsVector;
+            export const pvi = Citizen.pointerValueInt;
+            export const pvf = Citizen.pointerValueFloat;
+            export const pvv = Citizen.pointerValueVector;
+            export const pvii = Citizen.pointerValueIntInitialized;
+            export const pvfi = Citizen.pointerValueFloatInitialized;
+            export const _h = typeof GetHashKey !== 'undefined' ? GetHashKey : (s: string | number) => typeof s === 'number' ? s : 0;
+            export const f = (n: number) => n + 0.00000001;
+
+            // Non-class handle type aliases (these are just numbers at runtime)
+            export type ScrHandle = number;
+            export type Prompt = number;
+            export type FireId = number;
+            export type Blip = number;
+            export type PopZone = number;
+            export type PedGroup = number;
+            """);
     }
 
     private void GenerateRawIndex(NativeDatabase db, string outputPath)
@@ -541,7 +724,9 @@ public class TypeScriptGenerator : ICodeGenerator
 
         cb.AppendLine("// Types");
         cb.AppendLine("export { IHandle } from './types/IHandle';");
+        cb.AppendLine("export { Vector2 } from './types/Vector2';");
         cb.AppendLine("export { Vector3 } from './types/Vector3';");
+        cb.AppendLine("export { Color } from './types/Color';");
         cb.AppendLine("export { BufferedClass } from './types/BufferedClass';");
         cb.AppendLine();
 
@@ -574,7 +759,9 @@ public class TypeScriptGenerator : ICodeGenerator
 
         cb.AppendLine("// Types");
         cb.AppendLine("export { IHandle } from './types/IHandle';");
+        cb.AppendLine("export { Vector2 } from './types/Vector2';");
         cb.AppendLine("export { Vector3 } from './types/Vector3';");
+        cb.AppendLine("export { Color } from './types/Color';");
         cb.AppendLine("export { BufferedClass } from './types/BufferedClass';");
         cb.AppendLine();
 

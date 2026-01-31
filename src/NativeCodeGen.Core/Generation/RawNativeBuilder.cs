@@ -1,5 +1,6 @@
 using NativeCodeGen.Core.Models;
 using NativeCodeGen.Core.TypeSystem;
+using NativeCodeGen.Core.Utilities;
 
 namespace NativeCodeGen.Core.Generation;
 
@@ -137,12 +138,10 @@ public class RawNativeBuilder
         _cb.AppendLine();
     }
 
-    private string GetFunctionName(string nativeName)
+    private static string GetFunctionName(string nativeName)
     {
-        var trimmed = nativeName.TrimStart('_');
-        if (trimmed.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
-            return "N_" + trimmed;
-        return ToPascalCase(trimmed);
+        var normalized = NameConverter.NormalizeNativeName(nativeName);
+        return normalized.StartsWith("N_") ? normalized : NameConverter.ToPascalCase(normalized);
     }
 
     private void EmitDoc(NativeDefinition native, List<NativeParameter> inputParams, List<NativeParameter> outputParams)
@@ -400,36 +399,6 @@ public class RawNativeBuilder
         if (type.Category == TypeCategory.Vector3)
             return _config.Vector3Type;
 
-        return type.Name switch
-        {
-            "float" or "f32" or "f64" or "double" => _config.NumberType,
-            "BOOL" or "bool" => _config.BooleanType,
-            _ => _config.NumberType
-        };
-    }
-
-    private static string ToPascalCase(string name)
-    {
-        var sb = new System.Text.StringBuilder();
-        bool capitalizeNext = true;
-
-        foreach (var c in name)
-        {
-            if (c == '_')
-            {
-                capitalizeNext = true;
-            }
-            else if (capitalizeNext)
-            {
-                sb.Append(char.ToUpperInvariant(c));
-                capitalizeNext = false;
-            }
-            else
-            {
-                sb.Append(char.ToLowerInvariant(c));
-            }
-        }
-
-        return sb.ToString();
+        return type.IsBool ? _config.BooleanType : _config.NumberType;
     }
 }

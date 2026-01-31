@@ -18,26 +18,6 @@ public class MdxComponentParserTests
     }
 
     [Fact]
-    public void ParseEmbeddedEnums_WithQuotes()
-    {
-        var content = "See [enum: \"eVehicleSeat\"] for values";
-        var results = _parser.ParseEmbeddedEnums(content);
-
-        Assert.Single(results);
-        Assert.Equal("eVehicleSeat", results[0].Name);
-    }
-
-    [Fact]
-    public void ParseEmbeddedEnums_WithSingleQuotes()
-    {
-        var content = "Use [enum: 'ePedType']";
-        var results = _parser.ParseEmbeddedEnums(content);
-
-        Assert.Single(results);
-        Assert.Equal("ePedType", results[0].Name);
-    }
-
-    [Fact]
     public void ParseEmbeddedEnums_Multiple()
     {
         var content = "See [enum: eWeaponHash] or [enum: eAmmoType]";

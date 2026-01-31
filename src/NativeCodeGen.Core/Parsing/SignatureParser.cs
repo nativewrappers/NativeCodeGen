@@ -1,4 +1,3 @@
-using static NativeCodeGen.Core.Models.TypeInfo;
 using NativeCodeGen.Core.Models;
 
 namespace NativeCodeGen.Core.Parsing;
@@ -112,14 +111,12 @@ public class SignatureParser
             isPointer = true;
         }
 
-        var typeInfo = new TypeInfo
+        return new TypeInfo
         {
             Name = typeName,
             IsPointer = isPointer,
-            Category = DetermineCategory(typeName, isPointer)
+            Category = TypeInfo.CategorizeType(typeName, isPointer)
         };
-
-        return typeInfo;
     }
 
     private List<NativeParameter> ParseParameters()
@@ -215,7 +212,13 @@ public class SignatureParser
                 case "@in":
                     flags |= ParamFlags.In;
                     break;
-                // Unknown attributes are silently ignored
+                default:
+                    // Error on unknown attributes
+                    throw new ParseException(
+                        _filePath,
+                        _baseLineNumber,
+                        0,
+                        $"Unknown attribute '{attr}'. Valid attributes: @this, @notnull, @in");
             }
         }
 
@@ -238,7 +241,7 @@ public class SignatureParser
         {
             Name = typeName,
             IsPointer = isPointer,
-            Category = DetermineCategory(typeName, isPointer)
+            Category = TypeInfo.CategorizeType(typeName, isPointer)
         };
     }
 
@@ -293,35 +296,6 @@ public class SignatureParser
         }
 
         return value.ToString();
-    }
-
-    private static TypeCategory DetermineCategory(string name, bool isPointer)
-    {
-        if (name == "void" && !isPointer)
-            return TypeCategory.Void;
-
-        if (isPointer && (name == "char" || name == "string"))
-            return TypeCategory.String;
-
-        if (name == "string")
-            return TypeCategory.String;
-
-        if (name == "Hash")
-            return TypeCategory.Hash;
-
-        if (name == "Vector3")
-            return TypeCategory.Vector3;
-
-        if (name == "Any")
-            return TypeCategory.Any;
-
-        if (IsPrimitive(name))
-            return TypeCategory.Primitive;
-
-        if (IsHandle(name))
-            return TypeCategory.Handle;
-
-        return TypeCategory.Struct;
     }
 }
 

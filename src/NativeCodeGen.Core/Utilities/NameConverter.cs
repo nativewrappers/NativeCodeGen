@@ -1,3 +1,4 @@
+using System.Collections.Frozen;
 using System.Text;
 
 namespace NativeCodeGen.Core.Utilities;
@@ -146,5 +147,45 @@ public static class NameConverter
         }
 
         return baseName;
+    }
+
+    // TypeScript/JavaScript reserved keywords
+    private static readonly FrozenSet<string> TypeScriptReservedWords = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+    {
+        "break", "case", "catch", "class", "const", "continue", "debugger", "default",
+        "delete", "do", "else", "enum", "export", "extends", "false", "finally", "for",
+        "function", "if", "import", "in", "instanceof", "new", "null", "return", "super",
+        "switch", "this", "throw", "true", "try", "typeof", "var", "void", "while", "with",
+        "yield", "let", "static", "implements", "interface", "package", "private",
+        "protected", "public", "as", "async", "await", "of", "any", "boolean", "number",
+        "string", "symbol", "type", "from", "get", "set", "constructor", "declare",
+        "module", "require", "namespace", "abstract", "is", "keyof", "readonly", "unique",
+        "infer", "never", "unknown"
+    }.ToFrozenSet(StringComparer.OrdinalIgnoreCase);
+
+    // Lua reserved keywords
+    private static readonly FrozenSet<string> LuaReservedWords = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+    {
+        "and", "break", "do", "else", "elseif", "end", "false", "for", "function", "goto",
+        "if", "in", "local", "nil", "not", "or", "repeat", "return", "then", "true",
+        "until", "while"
+    }.ToFrozenSet(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Escapes a parameter name if it's a TypeScript reserved keyword.
+    /// </summary>
+    public static string EscapeTypeScriptReserved(string name)
+    {
+        if (string.IsNullOrEmpty(name)) return name;
+        return TypeScriptReservedWords.Contains(name) ? "_" + name : name;
+    }
+
+    /// <summary>
+    /// Escapes a parameter name if it's a Lua reserved keyword.
+    /// </summary>
+    public static string EscapeLuaReserved(string name)
+    {
+        if (string.IsNullOrEmpty(name)) return name;
+        return LuaReservedWords.Contains(name) ? "_" + name : name;
     }
 }

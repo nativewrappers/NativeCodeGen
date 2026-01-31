@@ -48,6 +48,16 @@ public class LuaEmitter : ILanguageEmitter
         // Lua doesn't need imports - uses globals
     }
 
+    public void EmitNonClassHandleImports(CodeBuilder cb, IEnumerable<string> handleTypes)
+    {
+        // Lua doesn't need imports - uses globals
+    }
+
+    public void EmitTypeImports(CodeBuilder cb, IEnumerable<string> enumTypes, IEnumerable<string> structTypes)
+    {
+        // Lua doesn't need imports - types are available globally
+    }
+
     public void EmitClassStart(CodeBuilder cb, string className, string? baseClass, ClassKind kind)
     {
         switch (kind)
@@ -81,6 +91,14 @@ public class LuaEmitter : ILanguageEmitter
                 cb.AppendLine();
                 break;
 
+            case ClassKind.Weapon:
+                cb.AppendLine($"---@class {className}");
+                cb.AppendLine($"---@field ped Ped");
+                cb.AppendLine($"local {className} = {{}}");
+                cb.AppendLine($"{className}.__index = {className}");
+                cb.AppendLine();
+                break;
+
             case ClassKind.Namespace:
                 cb.AppendLine($"---@class {className}");
                 cb.AppendLine($"local {className} = {{}}");
@@ -89,8 +107,52 @@ public class LuaEmitter : ILanguageEmitter
         }
     }
 
-    public void EmitClassEnd(CodeBuilder cb, string className)
+    public void EmitClassEnd(CodeBuilder cb, string className, ClassKind kind)
     {
+        // Add special accessors before returning the class
+        if (kind == ClassKind.Handle && className == "Ped")
+        {
+            cb.AppendLine();
+            cb.AppendLine("---@return PedTask");
+            cb.AppendLine("function Ped:getTask()");
+            cb.Indent();
+            cb.AppendLine("if not self._task then");
+            cb.Indent();
+            cb.AppendLine("self._task = PedTask.new(self)");
+            cb.Dedent();
+            cb.AppendLine("end");
+            cb.AppendLine("return self._task");
+            cb.Dedent();
+            cb.AppendLine("end");
+            cb.AppendLine();
+            cb.AppendLine("---@return Weapon");
+            cb.AppendLine("function Ped:getWeapon()");
+            cb.Indent();
+            cb.AppendLine("if not self._weapon then");
+            cb.Indent();
+            cb.AppendLine("self._weapon = Weapon.new(self)");
+            cb.Dedent();
+            cb.AppendLine("end");
+            cb.AppendLine("return self._weapon");
+            cb.Dedent();
+            cb.AppendLine("end");
+        }
+        else if (kind == ClassKind.Handle && className == "Vehicle")
+        {
+            cb.AppendLine();
+            cb.AppendLine("---@return VehicleTask");
+            cb.AppendLine("function Vehicle:getTask()");
+            cb.Indent();
+            cb.AppendLine("if not self._task then");
+            cb.Indent();
+            cb.AppendLine("self._task = VehicleTask.new(self)");
+            cb.Dedent();
+            cb.AppendLine("end");
+            cb.AppendLine("return self._task");
+            cb.Dedent();
+            cb.AppendLine("end");
+        }
+
         cb.AppendLine($"return {className}");
     }
 
@@ -129,7 +191,7 @@ public class LuaEmitter : ILanguageEmitter
         cb.AppendLine();
     }
 
-    public void EmitTaskConstructor(CodeBuilder cb, string className, string entityType)
+    public void EmitTaskConstructor(CodeBuilder cb, string className, string entityType, string? baseClass)
     {
         cb.AppendLine($"---@param entity {entityType}");
         cb.AppendLine($"---@return {className}");
@@ -143,7 +205,7 @@ public class LuaEmitter : ILanguageEmitter
         cb.AppendLine();
     }
 
-    public void EmitModelConstructor(CodeBuilder cb, string className)
+    public void EmitModelConstructor(CodeBuilder cb, string className, string? baseClass)
     {
         cb.AppendLine($"---@param hash number");
         cb.AppendLine($"---@return {className}");
@@ -151,6 +213,20 @@ public class LuaEmitter : ILanguageEmitter
         cb.Indent();
         cb.AppendLine($"local self = setmetatable({{}}, {className})");
         cb.AppendLine("self.hash = hash");
+        cb.AppendLine("return self");
+        cb.Dedent();
+        cb.AppendLine("end");
+        cb.AppendLine();
+    }
+
+    public void EmitWeaponConstructor(CodeBuilder cb, string className)
+    {
+        cb.AppendLine($"---@param ped Ped");
+        cb.AppendLine($"---@return {className}");
+        cb.AppendLine($"function {className}.new(ped)");
+        cb.Indent();
+        cb.AppendLine($"local self = setmetatable({{}}, {className})");
+        cb.AppendLine("self.ped = ped");
         cb.AppendLine("return self");
         cb.Dedent();
         cb.AppendLine("end");
@@ -322,7 +398,7 @@ public class LuaEmitter : ILanguageEmitter
         cb.AppendLine($"function {structName}:get{fieldName}()");
         cb.Indent();
 
-        if (luaType == "boolean")
+        if (type.IsBool)
         {
             cb.AppendLine($"return self._view:{getter}(self._offset + {offset}{endianArg}) ~= 0");
         }
@@ -349,7 +425,7 @@ public class LuaEmitter : ILanguageEmitter
         cb.AppendLine($"function {structName}:set{fieldName}(value)");
         cb.Indent();
 
-        if (luaType == "boolean")
+        if (type.IsBool)
         {
             cb.AppendLine($"self._view:{setter}(self._offset + {offset}, value and 1 or 0{endianArg})");
         }
@@ -378,7 +454,7 @@ public class LuaEmitter : ILanguageEmitter
         cb.Indent();
         cb.AppendLine($"if index < 0 or index >= {arraySize} then error('Index out of bounds') end");
 
-        if (luaType == "boolean")
+        if (type.IsBool)
         {
             cb.AppendLine($"return self._view:{getter}(self._offset + {offset} + index * {elementSize}{endianArg}) ~= 0");
         }
@@ -407,7 +483,7 @@ public class LuaEmitter : ILanguageEmitter
         cb.Indent();
         cb.AppendLine($"if index < 0 or index >= {arraySize} then error('Index out of bounds') end");
 
-        if (luaType == "boolean")
+        if (type.IsBool)
         {
             cb.AppendLine($"self._view:{setter}(self._offset + {offset} + index * {elementSize}, value and 1 or 0{endianArg})");
         }

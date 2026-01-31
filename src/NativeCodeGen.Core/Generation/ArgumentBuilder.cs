@@ -34,18 +34,23 @@ public static class ArgumentBuilder
         if (param.IsInOut)
         {
             var format = typeMapper.GetInitializedPointerFormat(param.Type);
-            // Handle types need to pass .handle (unless raw mode)
-            var value = typeMapper.IsHandleType(param.Type) && !rawMode ? $"{param.Name}.handle" : param.Name;
+            // Only class handles (with generated classes) have .handle property
+            var value = typeMapper.IsHandleType(param.Type) && TypeInfo.IsClassHandle(param.Type.Name) && !rawMode
+                ? $"{param.Name}.handle"
+                : param.Name;
             return string.Format(format, value);
         }
 
-        // Vector3 expansion (non-pointer Vector3) - components are floats
-        if (typeMapper.IsVector3(param.Type) && !param.Type.IsPointer)
+        // Vector expansion (non-pointer Vector2/Vector3/Vector4) - components are floats
+        if (param.Type.IsVector && !param.Type.IsPointer)
         {
-            if (useFloat)
-                return $"{f}({param.Name}.x), {f}({param.Name}.y), {f}({param.Name}.z)";
-            else
-                return $"{param.Name}.x, {param.Name}.y, {param.Name}.z";
+            return ExpandVector(param.Name, param.Type.VectorComponentCount, useFloat, f);
+        }
+
+        // Color expansion (non-pointer Color) - components are integers (r, g, b, a)
+        if (param.Type.Category == TypeCategory.Color && !param.Type.IsPointer)
+        {
+            return $"{param.Name}.r, {param.Name}.g, {param.Name}.b, {param.Name}.a";
         }
 
         // Struct buffer
@@ -54,8 +59,9 @@ public static class ArgumentBuilder
             return $"{param.Name}.buffer";
         }
 
-        // Handle types - in raw mode, just pass the number directly
-        if (typeMapper.IsHandleType(param.Type) && !rawMode)
+        // Handle types - only class handles have a .handle property
+        // Non-class handles (ScrHandle, Prompt) are just numbers
+        if (typeMapper.IsHandleType(param.Type) && TypeInfo.IsClassHandle(param.Type.Name) && !rawMode)
         {
             return $"{param.Name}.handle";
         }
@@ -70,12 +76,9 @@ public static class ArgumentBuilder
         }
 
         // Float type - wrap with f() to prevent bundler optimization
-        if (param.Type.Name is "float" or "f32" or "f64" or "double")
+        if (param.Type.IsFloat)
         {
-            if (useFloat)
-                return $"{f}({param.Name})";
-            else
-                return param.Name;
+            return useFloat ? $"{f}({param.Name})" : param.Name;
         }
 
         // Regular value
@@ -134,5 +137,16 @@ public static class ArgumentBuilder
         }
 
         return args;
+    }
+
+    /// <summary>
+    /// Expands a vector parameter to its component arguments (x, y, [z], [w]).
+    /// </summary>
+    private static string ExpandVector(string paramName, int componentCount, bool useFloat, string floatAlias)
+    {
+        var components = TypeInfo.VectorComponents[..componentCount];
+        return useFloat
+            ? string.Join(", ", components.Select(c => $"{floatAlias}({paramName}.{c})"))
+            : string.Join(", ", components.Select(c => $"{paramName}.{c}"));
     }
 }

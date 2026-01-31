@@ -39,7 +39,8 @@ public class MdxParser
             Namespace = frontmatter!.Ns,
             Aliases = frontmatter.Aliases,
             ApiSet = frontmatter.Apiset,
-            SourceFile = filePath
+            SourceFile = filePath,
+            MethodNameOverride = frontmatter.MethodName
         };
 
         // Track what we've parsed

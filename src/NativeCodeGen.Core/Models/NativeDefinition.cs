@@ -16,6 +16,10 @@ public class NativeDefinition
     public List<string> RelatedExamples { get; set; } = new();
     public List<Callout> Callouts { get; set; } = new();
     public string? SourceFile { get; set; }
+    /// <summary>
+    /// Override the generated method name (from frontmatter methodName field).
+    /// </summary>
+    public string? MethodNameOverride { get; set; }
 }
 
 public class NativeAttributes

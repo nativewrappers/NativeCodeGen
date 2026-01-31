@@ -1,3 +1,5 @@
+using System.Collections.Frozen;
+
 namespace NativeCodeGen.Core.Models;
 
 public class TypeInfo
@@ -11,6 +13,75 @@ public class TypeInfo
     /// For enum types, the base type (e.g., "Hash", "int"). Null for non-enums.
     /// </summary>
     public string? EnumBaseType { get; set; }
+
+    /// <summary>True if this is a boolean type (bool or BOOL).</summary>
+    public bool IsBool => Name is "bool" or "BOOL";
+
+    /// <summary>True if this is a floating-point type.</summary>
+    public bool IsFloat => Name is "float" or "f32" or "f64" or "double";
+
+    /// <summary>True if this is a vector type (Vector2, Vector3, Vector4).</summary>
+    public bool IsVector => Category is TypeCategory.Vector2 or TypeCategory.Vector3 or TypeCategory.Vector4;
+
+    /// <summary>Gets the component names for vector types.</summary>
+    public static readonly string[] VectorComponents = ["x", "y", "z", "w"];
+
+    /// <summary>Gets the number of components for this vector type, or 0 if not a vector.</summary>
+    public int VectorComponentCount => Category switch
+    {
+        TypeCategory.Vector2 => 2,
+        TypeCategory.Vector3 => 3,
+        TypeCategory.Vector4 => 4,
+        _ => 0
+    };
+
+    // Static frozen dictionaries for O(1) lookup
+    private static readonly FrozenSet<string> Primitives = new HashSet<string>
+    {
+        "int", "uint", "float", "double", "BOOL", "bool",
+        "u8", "u16", "u32", "u64",
+        "i8", "i16", "i32", "i64",
+        "f32", "f64", "long", "variadic"
+    }.ToFrozenSet(StringComparer.Ordinal);
+
+    private static readonly FrozenSet<string> Handles = new HashSet<string>
+    {
+        "Entity", "Ped", "Vehicle", "Object", "Pickup",
+        "Player", "Cam", "Blip", "Interior", "FireId",
+        "AnimScene", "ItemSet", "PersChar", "PopZone",
+        "PropSet", "Volume", "ScrHandle", "PedGroup", "Prompt"
+    }.ToFrozenSet(StringComparer.Ordinal);
+
+    private static readonly FrozenSet<string> ClassHandles = new HashSet<string>
+    {
+        // Core entity types
+        "Entity", "Ped", "Vehicle", "Object", "Pickup",
+        // Other types with dedicated namespaces
+        "Player", "Cam", "Interior",
+        "AnimScene", "ItemSet", "PersChar",
+        "PropSet", "Volume"
+    }.ToFrozenSet(StringComparer.Ordinal);
+
+    private static readonly FrozenDictionary<string, TypeCategory> SpecialTypes =
+        new Dictionary<string, TypeCategory>
+        {
+            ["void"] = TypeCategory.Void,
+            ["Hash"] = TypeCategory.Hash,
+            ["Vector2"] = TypeCategory.Vector2,
+            ["Vector3"] = TypeCategory.Vector3,
+            ["Vector4"] = TypeCategory.Vector4,
+            ["Color"] = TypeCategory.Color,
+            ["Any"] = TypeCategory.Any,
+            ["string"] = TypeCategory.String
+        }.ToFrozenDictionary(StringComparer.Ordinal);
+
+    /// <summary>
+    /// Known valid attributes for parameters.
+    /// </summary>
+    public static readonly FrozenSet<string> ValidAttributes = new HashSet<string>
+    {
+        "@this", "@notnull", "@in"
+    }.ToFrozenSet(StringComparer.Ordinal);
 
     public static TypeInfo Parse(string typeString)
     {
@@ -43,52 +114,46 @@ public class TypeInfo
         }
     }
 
-    private static TypeCategory CategorizeType(string name, bool isPointer)
+    /// <summary>
+    /// Categorizes a type name into a TypeCategory. This is the single source of truth
+    /// for type categorization - do not duplicate this logic.
+    /// </summary>
+    public static TypeCategory CategorizeType(string name, bool isPointer)
     {
-        if (name == "void" && !isPointer)
+        // Handle void (both void and void*)
+        if (name == "void")
             return TypeCategory.Void;
 
+        // Handle string types (char* or string)
         if (isPointer && (name == "char" || name == "string"))
             return TypeCategory.String;
 
-        if (name == "string")
-            return TypeCategory.String;
+        // Check special types dictionary first (includes string, Hash, Vector*, Color, Any)
+        if (SpecialTypes.TryGetValue(name, out var category))
+            return category;
 
-        if (name == "Hash")
-            return TypeCategory.Hash;
-
-        if (name == "Vector3")
-            return TypeCategory.Vector3;
-
-        if (name == "Any")
-            return TypeCategory.Any;
-
-        if (IsPrimitive(name))
+        // Check primitives
+        if (Primitives.Contains(name))
             return TypeCategory.Primitive;
 
-        if (IsHandle(name))
+        // Check handles
+        if (Handles.Contains(name))
             return TypeCategory.Handle;
 
+        // Default to Struct (may be resolved to Enum later)
         return TypeCategory.Struct;
     }
 
-    public static bool IsPrimitive(string name) => name switch
-    {
-        "int" or "uint" or "float" or "double" or "BOOL" or "bool" => true,
-        "u8" or "u16" or "u32" or "u64" => true,
-        "i8" or "i16" or "i32" or "i64" => true,
-        "f32" or "f64" => true,
-        _ => false
-    };
+    public static bool IsPrimitive(string name) => Primitives.Contains(name);
 
-    public static bool IsHandle(string name) => name switch
-    {
-        "Entity" or "Ped" or "Vehicle" or "Object" or "Pickup" => true,
-        "Player" or "Cam" or "Blip" or "Interior" or "FireId" => true,
-        "AnimScene" or "ItemSet" or "PersChar" or "PopZone" => true,
-        "PropSet" or "Volume" or "ScrHandle" or "PedGroup" => true,
-        _ => false
-    };
+    public static bool IsHandle(string name) => Handles.Contains(name);
+
+    /// <summary>
+    /// Handle types that have their own generated class (with a namespace of methods).
+    /// Must match types in NativeClassifier.TypeToNamespace.
+    /// Other handles like Prompt, ScrHandle, FireId, PopZone, Blip are just typed as number.
+    /// </summary>
+    public static bool IsClassHandle(string name) => ClassHandles.Contains(name);
 
     public override string ToString()
     {
@@ -103,7 +168,10 @@ public enum TypeCategory
     Handle,
     Hash,
     String,
+    Vector2,
     Vector3,
+    Vector4,
+    Color,
     Any,
     Struct,
     Enum

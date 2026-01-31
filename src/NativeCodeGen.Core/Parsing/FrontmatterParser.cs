@@ -8,6 +8,11 @@ public class Frontmatter
     public string Ns { get; set; } = string.Empty;
     public List<string> Aliases { get; set; } = new();
     public string Apiset { get; set; } = "client";
+    /// <summary>
+    /// Override the generated method name (useful for avoiding collisions in inheritance).
+    /// Use snake_case in YAML: method_name
+    /// </summary>
+    public string? MethodName { get; set; }
 }
 
 public class FrontmatterParser
@@ -17,7 +22,7 @@ public class FrontmatterParser
     public FrontmatterParser()
     {
         _deserializer = new DeserializerBuilder()
-            .WithNamingConvention(CamelCaseNamingConvention.Instance)
+            .WithNamingConvention(UnderscoredNamingConvention.Instance)
             .IgnoreUnmatchedProperties()
             .Build();
     }

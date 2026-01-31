@@ -1,3 +1,4 @@
+using System.Collections.Frozen;
 using NativeCodeGen.Core.Models;
 using NativeCodeGen.Core.Parsing;
 
@@ -9,50 +10,63 @@ namespace NativeCodeGen.Core.Generation;
 /// </summary>
 public class NativeClassifier
 {
-    public static readonly Dictionary<string, string?> HandleClassHierarchy = new()
-    {
-        ["Entity"] = null,
-        ["Ped"] = "Entity",
-        ["Vehicle"] = "Entity",
-        ["Prop"] = "Entity",
-        ["Pickup"] = null,
-        ["Player"] = null,
-        ["Cam"] = null,
-        ["Blip"] = null,
-        ["Interior"] = null,
-        ["FireId"] = null,
-        ["AnimScene"] = null,
-        ["ItemSet"] = null,
-        ["PersChar"] = null,
-        ["PopZone"] = null,
-        ["PropSet"] = null,
-        ["Volume"] = null,
-        ["PedGroup"] = null,
-        ["BaseTask"] = null,
-        ["PedTask"] = "BaseTask",
-        ["VehicleTask"] = "BaseTask",
-        ["BaseModel"] = null,
-        ["PedModel"] = "BaseModel",
-        ["VehicleModel"] = "BaseModel",
-        ["WeaponModel"] = "BaseModel"
-    };
+    public static readonly FrozenDictionary<string, string?> HandleClassHierarchy =
+        new Dictionary<string, string?>
+        {
+            ["Entity"] = null,
+            ["Ped"] = "Entity",
+            ["Vehicle"] = "Entity",
+            ["Prop"] = "Entity",
+            ["Pickup"] = null,
+            ["Player"] = null,
+            ["Cam"] = null,
+            ["Blip"] = null,
+            ["Interior"] = null,
+            ["FireId"] = null,
+            ["AnimScene"] = null,
+            ["ItemSet"] = null,
+            ["PersChar"] = null,
+            ["PopZone"] = null,
+            ["PropSet"] = null,
+            ["Volume"] = null,
+            ["PedGroup"] = null,
+            ["BaseTask"] = null,
+            ["PedTask"] = "BaseTask",
+            ["VehicleTask"] = "BaseTask",
+            ["BaseModel"] = null,
+            ["PedModel"] = "BaseModel",
+            ["VehicleModel"] = "BaseModel",
+            ["WeaponModel"] = "BaseModel",
+            ["Weapon"] = null
+        }.ToFrozenDictionary(StringComparer.Ordinal);
 
-    public static readonly Dictionary<string, string> TypeToNamespace = new()
-    {
-        ["Entity"] = "ENTITY",
-        ["Ped"] = "PED",
-        ["Vehicle"] = "VEHICLE",
-        ["Object"] = "OBJECT",
-        ["Pickup"] = "OBJECT",
-        ["Player"] = "PLAYER",
-        ["Cam"] = "CAM",
-        ["Blip"] = "HUD",
-        ["Interior"] = "INTERIOR"
-    };
+    public static readonly FrozenDictionary<string, string> TypeToNamespace =
+        new Dictionary<string, string>
+        {
+            ["Entity"] = "ENTITY",
+            ["Ped"] = "PED",
+            ["Vehicle"] = "VEHICLE",
+            ["Object"] = "OBJECT",
+            ["Pickup"] = "OBJECT",
+            ["Player"] = "PLAYER",
+            ["Cam"] = "CAM",
+            ["Blip"] = "HUD",
+            ["Interior"] = "INTERIOR",
+            ["AnimScene"] = "ANIMSCENE",
+            ["ItemSet"] = "ITEMSET",
+            ["PersChar"] = "PERSCHAR",
+            ["PropSet"] = "PROPSET",
+            ["Volume"] = "VOLUME"
+        }.ToFrozenDictionary(StringComparer.Ordinal);
 
-    public static readonly HashSet<string> TaskClasses = new() { "BaseTask", "PedTask", "VehicleTask" };
-    public static readonly HashSet<string> ModelClasses = new() { "BaseModel", "PedModel", "VehicleModel", "WeaponModel" };
-    public static readonly HashSet<string> EntitySubclasses = new() { "Ped", "Vehicle", "Object", "Prop" };
+    public static readonly FrozenSet<string> TaskClasses =
+        new HashSet<string> { "BaseTask", "PedTask", "VehicleTask" }.ToFrozenSet(StringComparer.Ordinal);
+
+    public static readonly FrozenSet<string> ModelClasses =
+        new HashSet<string> { "BaseModel", "PedModel", "VehicleModel", "WeaponModel" }.ToFrozenSet(StringComparer.Ordinal);
+
+    public static readonly FrozenSet<string> EntitySubclasses =
+        new HashSet<string> { "Ped", "Vehicle", "Object", "Prop" }.ToFrozenSet(StringComparer.Ordinal);
 
     public ClassifiedNatives Classify(NativeDatabase db)
     {
@@ -65,19 +79,21 @@ public class NativeClassifier
                 var targetClass = DetermineTargetClass(native);
                 if (targetClass != null)
                 {
-                    if (!result.HandleClasses.ContainsKey(targetClass))
+                    if (!result.HandleClasses.TryGetValue(targetClass, out var list))
                     {
-                        result.HandleClasses[targetClass] = new List<NativeDefinition>();
+                        list = new List<NativeDefinition>();
+                        result.HandleClasses[targetClass] = list;
                     }
-                    result.HandleClasses[targetClass].Add(native);
+                    list.Add(native);
                 }
                 else
                 {
-                    if (!result.NamespaceClasses.ContainsKey(ns.Name))
+                    if (!result.NamespaceClasses.TryGetValue(ns.Name, out var list))
                     {
-                        result.NamespaceClasses[ns.Name] = new List<NativeDefinition>();
+                        list = new List<NativeDefinition>();
+                        result.NamespaceClasses[ns.Name] = list;
                     }
-                    result.NamespaceClasses[ns.Name].Add(native);
+                    list.Add(native);
                 }
             }
         }
@@ -85,7 +101,7 @@ public class NativeClassifier
         return result;
     }
 
-    private string? DetermineTargetClass(NativeDefinition native)
+    private static string? DetermineTargetClass(NativeDefinition native)
     {
         if (native.Parameters.Count == 0)
             return null;
@@ -111,6 +127,11 @@ public class NativeClassifier
                     "Entity" => "BaseTask",
                     _ => null
                 };
+            }
+
+            if (native.Namespace.Equals("WEAPON", StringComparison.OrdinalIgnoreCase) && handleType == "Ped")
+            {
+                return "Weapon";
             }
 
             if (TypeToNamespace.TryGetValue(handleType, out var expectedNs))
@@ -145,6 +166,7 @@ public class NativeClassifier
 
     public static bool IsTaskClass(string className) => TaskClasses.Contains(className);
     public static bool IsModelClass(string className) => ModelClasses.Contains(className);
+    public static bool IsWeaponClass(string className) => className == "Weapon";
 
     public static string GetTaskEntityType(string className) => className switch
     {

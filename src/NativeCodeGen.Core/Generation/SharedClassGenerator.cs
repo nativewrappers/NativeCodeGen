@@ -28,6 +28,10 @@ public class SharedClassGenerator
         {
             GenerateModelClass(cb, className, baseClass, natives);
         }
+        else if (NativeClassifier.IsWeaponClass(className))
+        {
+            GenerateWeaponClass(cb, className, natives);
+        }
         else
         {
             GenerateStandardHandleClass(cb, className, baseClass, natives);
@@ -43,9 +47,13 @@ public class SharedClassGenerator
             ? NameConverter.NamespaceToClassName(namespaceName, handleClassNames)
             : NameConverter.NamespaceToClassName(namespaceName);
 
-        // Collect handle types used in this namespace class
+        // Collect types used in this namespace class
         var handleTypes = CollectHandleTypes(natives);
+        var nonClassHandleTypes = CollectNonClassHandleTypes(natives);
+        var (enums, structs) = CollectTypeReferences(natives);
+        _emitter.EmitTypeImports(cb, enums, structs);
         _emitter.EmitHandleImports(cb, handleTypes);
+        _emitter.EmitNonClassHandleImports(cb, nonClassHandleTypes);
 
         _emitter.EmitClassStart(cb, className, null, ClassKind.Namespace);
 
@@ -54,38 +62,76 @@ public class SharedClassGenerator
             GenerateStaticMethod(cb, native, className, namespaceName);
         }
 
-        _emitter.EmitClassEnd(cb, className);
+        _emitter.EmitClassEnd(cb, className, ClassKind.Namespace);
 
         return cb.ToString();
     }
 
-    private HashSet<string> CollectHandleTypes(List<NativeDefinition> natives)
+    private HashSet<string> CollectHandleTypes(List<NativeDefinition> natives) =>
+        CollectHandles(natives, TypeInfo.IsClassHandle, NativeClassifier.NormalizeHandleType);
+
+    private HashSet<string> CollectNonClassHandleTypes(List<NativeDefinition> natives) =>
+        CollectHandles(natives, name => !TypeInfo.IsClassHandle(name), name => name);
+
+    private HashSet<string> CollectHandles(
+        List<NativeDefinition> natives,
+        Func<string, bool> filter,
+        Func<string, string> normalize)
     {
-        var handleTypes = new HashSet<string>();
+        var handles = new HashSet<string>();
 
         foreach (var native in natives)
         {
-            // Check return type
-            if (native.ReturnType.Category == TypeCategory.Handle)
-            {
-                handleTypes.Add(NativeClassifier.NormalizeHandleType(native.ReturnType.Name));
-            }
+            if (native.ReturnType.Category == TypeCategory.Handle && filter(native.ReturnType.Name))
+                handles.Add(normalize(native.ReturnType.Name));
 
-            // Check parameters
             foreach (var param in native.Parameters)
             {
-                if (param.Type.Category == TypeCategory.Handle)
-                {
-                    handleTypes.Add(NativeClassifier.NormalizeHandleType(param.Type.Name));
-                }
+                if (param.Type.Category == TypeCategory.Handle && filter(param.Type.Name))
+                    handles.Add(normalize(param.Type.Name));
             }
         }
 
-        return handleTypes;
+        return handles;
+    }
+
+    private (HashSet<string> enums, HashSet<string> structs) CollectTypeReferences(List<NativeDefinition> natives)
+    {
+        var enums = new HashSet<string>();
+        var structs = new HashSet<string>();
+
+        foreach (var native in natives)
+        {
+            CollectTypeRef(native.ReturnType, enums, structs);
+            foreach (var param in native.Parameters)
+            {
+                CollectTypeRef(param.Type, enums, structs);
+            }
+        }
+
+        return (enums, structs);
+    }
+
+    private void CollectTypeRef(TypeInfo type, HashSet<string> enums, HashSet<string> structs)
+    {
+        if (type.Category == TypeCategory.Enum)
+        {
+            enums.Add(type.Name);
+        }
+        else if (type.Category == TypeCategory.Struct)
+        {
+            structs.Add(type.Name);
+        }
     }
 
     private void GenerateStandardHandleClass(CodeBuilder cb, string className, string? baseClass, List<NativeDefinition> natives)
     {
+        var (enums, structs) = CollectTypeReferences(natives);
+        var handleTypes = CollectHandleTypes(natives);
+        handleTypes.Remove(className); // Don't import self
+        if (baseClass != null) handleTypes.Remove(baseClass); // Don't import base class - already imported
+        _emitter.EmitTypeImports(cb, enums, structs);
+        _emitter.EmitHandleImports(cb, handleTypes);
         _emitter.EmitClassStart(cb, className, baseClass, ClassKind.Handle);
         _emitter.EmitHandleConstructor(cb, className, baseClass);
         _emitter.EmitFromHandleMethod(cb, className);
@@ -95,40 +141,66 @@ public class SharedClassGenerator
             GenerateInstanceMethod(cb, native, className);
         }
 
-        _emitter.EmitClassEnd(cb, className);
+        _emitter.EmitClassEnd(cb, className, ClassKind.Handle);
     }
 
     private void GenerateTaskClass(CodeBuilder cb, string className, string? baseClass, List<NativeDefinition> natives)
     {
         var entityType = NativeClassifier.GetTaskEntityType(className);
-
+        var (enums, structs) = CollectTypeReferences(natives);
+        var handleTypes = CollectHandleTypes(natives);
+        handleTypes.Remove(entityType); // Don't import entity type - already imported via type import
+        _emitter.EmitTypeImports(cb, enums, structs);
+        _emitter.EmitHandleImports(cb, handleTypes);
         _emitter.EmitClassStart(cb, className, baseClass, ClassKind.Task);
-        _emitter.EmitTaskConstructor(cb, className, entityType);
+        _emitter.EmitTaskConstructor(cb, className, entityType, baseClass);
 
         foreach (var native in natives)
         {
             GenerateMethodWithSkippedFirst(cb, native, className, "TASK", $"{_emitter.SelfReference}.entity.handle", entityType);
         }
 
-        _emitter.EmitClassEnd(cb, className);
+        _emitter.EmitClassEnd(cb, className, ClassKind.Task);
     }
 
     private void GenerateModelClass(CodeBuilder cb, string className, string? baseClass, List<NativeDefinition> natives)
     {
+        var (enums, structs) = CollectTypeReferences(natives);
+        var handleTypes = CollectHandleTypes(natives);
+        _emitter.EmitTypeImports(cb, enums, structs);
+        _emitter.EmitHandleImports(cb, handleTypes);
         _emitter.EmitClassStart(cb, className, baseClass, ClassKind.Model);
-        _emitter.EmitModelConstructor(cb, className);
+        _emitter.EmitModelConstructor(cb, className, baseClass);
 
         foreach (var native in natives)
         {
             GenerateMethodWithSkippedFirst(cb, native, className, "STREAMING", $"{_emitter.SelfReference}.hash", null);
         }
 
-        _emitter.EmitClassEnd(cb, className);
+        _emitter.EmitClassEnd(cb, className, ClassKind.Model);
+    }
+
+    private void GenerateWeaponClass(CodeBuilder cb, string className, List<NativeDefinition> natives)
+    {
+        var (enums, structs) = CollectTypeReferences(natives);
+        var handleTypes = CollectHandleTypes(natives);
+        handleTypes.Remove("Ped"); // Don't import Ped - already imported via type import
+        _emitter.EmitTypeImports(cb, enums, structs);
+        _emitter.EmitHandleImports(cb, handleTypes);
+        _emitter.EmitClassStart(cb, className, null, ClassKind.Weapon);
+        _emitter.EmitWeaponConstructor(cb, className);
+
+        foreach (var native in natives)
+        {
+            GenerateMethodWithSkippedFirst(cb, native, className, "WEAPON", $"{_emitter.SelfReference}.ped.handle", "Ped");
+        }
+
+        _emitter.EmitClassEnd(cb, className, ClassKind.Weapon);
     }
 
     private void GenerateInstanceMethod(CodeBuilder cb, NativeDefinition native, string className)
     {
-        var methodName = NameDeduplicator.DeduplicateForClass(native.Name, className, NamingConvention.CamelCase);
+        var methodName = native.MethodNameOverride ?? NameDeduplicator.DeduplicateForClass(native.Name, className, NamingConvention.CamelCase);
         var isInstance = IsInstanceMethod(native, className);
 
         var parameters = native.Parameters.ToList();
@@ -136,49 +208,38 @@ public class SharedClassGenerator
         {
             var firstParam = parameters[0];
             if (IsHandleMatch(firstParam.Type, className) || firstParam.IsThis)
-            {
                 parameters = parameters.Skip(1).ToList();
-            }
         }
 
-        var inputParams = parameters.Where(p => !p.IsPureOutput).ToList();
-        var outputParams = parameters.Where(p => p.IsPureOutput).ToList();
-        var outputParamTypes = outputParams.Select(p => p.Type).ToList();
-
-        // Generate doc
-        GenerateMethodDoc(cb, native, inputParams, outputParams);
-
-        // Build method parameters
-        var methodParams = inputParams.Select(p => new MethodParameter(
-            p.Name,
-            _emitter.TypeMapper.MapType(p.Type, p.IsNotNull),
-            p.HasDefaultValue
-        )).ToList();
-
-        var returnType = _emitter.TypeMapper.BuildCombinedReturnType(native.ReturnType, outputParamTypes);
-        _emitter.EmitMethodStart(cb, className, methodName, methodParams, returnType, MethodKind.Instance);
-
-        // Build invoke args - pass ALL parameters (ArgumentBuilder handles output pointers)
-        var args = new List<string>();
-        if (isInstance)
-        {
-            args.Add($"{_emitter.SelfReference}.handle");
-        }
-
-        foreach (var param in parameters)
-        {
-            args.Add(ArgumentBuilder.GetArgumentExpression(param, _emitter.TypeMapper, _emitter.Config));
-        }
-
-        _emitter.EmitInvokeNative(cb, native.Hash, args, native.ReturnType, outputParamTypes);
-        _emitter.EmitMethodEnd(cb);
+        var firstArg = isInstance ? $"{_emitter.SelfReference}.handle" : null;
+        EmitMethod(cb, native, className, methodName, parameters, firstArg, MethodKind.Instance);
     }
 
     private void GenerateMethodWithSkippedFirst(CodeBuilder cb, NativeDefinition native, string className, string namespaceForDedup, string firstArgExpr, string? entityType)
     {
-        var methodName = NameDeduplicator.DeduplicateForNamespace(native.Name, namespaceForDedup, NamingConvention.CamelCase);
-
+        var methodName = native.MethodNameOverride ?? NameDeduplicator.DeduplicateForNamespace(native.Name, namespaceForDedup, NamingConvention.CamelCase);
         var parameters = native.Parameters.Skip(1).ToList();
+        EmitMethod(cb, native, className, methodName, parameters, firstArgExpr, MethodKind.Instance);
+    }
+
+    private void GenerateStaticMethod(CodeBuilder cb, NativeDefinition native, string className, string namespaceName)
+    {
+        var methodName = native.MethodNameOverride ?? NameDeduplicator.DeduplicateForNamespace(native.Name, namespaceName, NamingConvention.CamelCase);
+        EmitMethod(cb, native, className, methodName, native.Parameters.ToList(), null, MethodKind.Static);
+    }
+
+    /// <summary>
+    /// Core method generation logic shared by instance, static, and skipped-first methods.
+    /// </summary>
+    private void EmitMethod(
+        CodeBuilder cb,
+        NativeDefinition native,
+        string className,
+        string methodName,
+        List<NativeParameter> parameters,
+        string? firstArg,
+        MethodKind kind)
+    {
         var inputParams = parameters.Where(p => !p.IsPureOutput).ToList();
         var outputParams = parameters.Where(p => p.IsPureOutput).ToList();
         var outputParamTypes = outputParams.Select(p => p.Type).ToList();
@@ -192,44 +253,15 @@ public class SharedClassGenerator
         )).ToList();
 
         var returnType = _emitter.TypeMapper.BuildCombinedReturnType(native.ReturnType, outputParamTypes);
-        _emitter.EmitMethodStart(cb, className, methodName, methodParams, returnType, MethodKind.Instance);
+        _emitter.EmitMethodStart(cb, className, methodName, methodParams, returnType, kind);
 
-        // Build invoke args - pass ALL parameters (ArgumentBuilder handles output pointers)
-        var args = new List<string> { firstArgExpr };
-        foreach (var param in parameters)
-        {
-            args.Add(ArgumentBuilder.GetArgumentExpression(param, _emitter.TypeMapper, _emitter.Config));
-        }
-
-        _emitter.EmitInvokeNative(cb, native.Hash, args, native.ReturnType, outputParamTypes);
-        _emitter.EmitMethodEnd(cb);
-    }
-
-    private void GenerateStaticMethod(CodeBuilder cb, NativeDefinition native, string className, string namespaceName)
-    {
-        var methodName = NameDeduplicator.DeduplicateForNamespace(native.Name, namespaceName, NamingConvention.CamelCase);
-
-        var inputParams = native.Parameters.Where(p => !p.IsPureOutput).ToList();
-        var outputParams = native.Parameters.Where(p => p.IsPureOutput).ToList();
-        var outputParamTypes = outputParams.Select(p => p.Type).ToList();
-
-        GenerateMethodDoc(cb, native, inputParams, outputParams);
-
-        var methodParams = inputParams.Select(p => new MethodParameter(
-            p.Name,
-            _emitter.TypeMapper.MapType(p.Type, p.IsNotNull),
-            p.HasDefaultValue
-        )).ToList();
-
-        var returnType = _emitter.TypeMapper.BuildCombinedReturnType(native.ReturnType, outputParamTypes);
-        _emitter.EmitMethodStart(cb, className, methodName, methodParams, returnType, MethodKind.Static);
-
-        // Build invoke args - pass ALL parameters (ArgumentBuilder handles output pointers)
+        // Build invoke args
         var args = new List<string>();
-        foreach (var param in native.Parameters)
-        {
+        if (firstArg != null)
+            args.Add(firstArg);
+
+        foreach (var param in parameters)
             args.Add(ArgumentBuilder.GetArgumentExpression(param, _emitter.TypeMapper, _emitter.Config));
-        }
 
         _emitter.EmitInvokeNative(cb, native.Hash, args, native.ReturnType, outputParamTypes);
         _emitter.EmitMethodEnd(cb);
