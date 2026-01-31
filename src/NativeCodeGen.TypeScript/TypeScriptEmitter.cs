@@ -246,8 +246,8 @@ public class TypeScriptEmitter : ILanguageEmitter
             cb.AppendLine(" */");
             cb.AppendLine("get NetworkId(): number {");
             cb.Indent();
-            // NETWORK_GET_NETWORK_ID_FROM_ENTITY = 0xF260AF6F43953316 (same as PED_TO_NET, VEH_TO_NET, OBJ_TO_NET)
-            cb.AppendLine("return inv<number>('0xF260AF6F43953316', this.handle, rai());");
+            // NETWORK_GET_NETWORK_ID_FROM_ENTITY = 0xA11700682F3AD45C
+            cb.AppendLine("return inv<number>('0xA11700682F3AD45C', this.handle, rai());");
             cb.Dedent();
             cb.AppendLine("}");
         }
