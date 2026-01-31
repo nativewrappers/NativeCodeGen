@@ -43,6 +43,9 @@ public record LanguageConfig
     public required bool UseFloatWrapper { get; init; }
     public required bool UseHashWrapper { get; init; }
 
+    // Whether the language supports getter properties (TypeScript does, Lua doesn't)
+    public required bool SupportsGetters { get; init; }
+
     public static readonly LanguageConfig TypeScript = new()
     {
         VoidType = "void",
@@ -72,7 +75,8 @@ public record LanguageConfig
         FloatWrapperAlias = "f",
         HashWrapperAlias = "_h",
         UseFloatWrapper = true,
-        UseHashWrapper = true
+        UseHashWrapper = true,
+        SupportsGetters = true
     };
 
     public static readonly LanguageConfig Lua = new()
@@ -104,7 +108,8 @@ public record LanguageConfig
         FloatWrapperAlias = "f",
         HashWrapperAlias = "_h",
         UseFloatWrapper = false,
-        UseHashWrapper = true
+        UseHashWrapper = true,
+        SupportsGetters = false
     };
 }
 

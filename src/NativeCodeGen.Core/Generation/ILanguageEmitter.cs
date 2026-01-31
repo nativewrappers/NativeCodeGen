@@ -121,6 +121,12 @@ public interface ILanguageEmitter
     void EmitMethodEnd(CodeBuilder cb);
 
     /// <summary>
+    /// Emits a getter proxy that calls an underlying method.
+    /// Used when a method has all optional parameters - generates both the method and a getter.
+    /// </summary>
+    void EmitGetterProxy(CodeBuilder cb, string propertyName, string methodName, string returnType);
+
+    /// <summary>
     /// Emits a native invoke call.
     /// </summary>
     /// <param name="cb">The code builder.</param>
@@ -204,7 +210,11 @@ public enum MethodKind
     /// <summary>Instance method (uses self/this)</summary>
     Instance,
     /// <summary>Static method</summary>
-    Static
+    Static,
+    /// <summary>Getter property (parameterless method returning a value)</summary>
+    Getter,
+    /// <summary>Setter property (single-parameter void method)</summary>
+    Setter
 }
 
 /// <summary>

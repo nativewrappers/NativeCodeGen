@@ -188,4 +188,74 @@ public static class NameConverter
         if (string.IsNullOrEmpty(name)) return name;
         return LuaReservedWords.Contains(name) ? "_" + name : name;
     }
+
+    /// <summary>
+    /// Checks if a method name is a getter (starts with "get" or "is" followed by uppercase).
+    /// </summary>
+    public static bool IsGetterName(string methodName)
+    {
+        if (string.IsNullOrEmpty(methodName))
+            return false;
+
+        // Check "get" prefix (getHealth -> Health)
+        if (methodName.Length > 3 &&
+            methodName.StartsWith("get", StringComparison.Ordinal) &&
+            char.IsUpper(methodName[3]))
+            return true;
+
+        // Check "is" prefix (isMale -> IsMale)
+        if (methodName.Length > 2 &&
+            methodName.StartsWith("is", StringComparison.Ordinal) &&
+            char.IsUpper(methodName[2]))
+            return true;
+
+        return false;
+    }
+
+    /// <summary>
+    /// Converts a getter method name to a property name.
+    /// "get" prefix is removed, "is" prefix is kept (for clarity).
+    /// </summary>
+    public static string GetterToPropertyName(string methodName)
+    {
+        if (string.IsNullOrEmpty(methodName))
+            return methodName;
+
+        // "get" prefix: getHealth -> Health
+        if (methodName.Length > 3 &&
+            methodName.StartsWith("get", StringComparison.Ordinal) &&
+            char.IsUpper(methodName[3]))
+            return methodName[3..];
+
+        // "is" prefix: isMale -> IsMale (keep the "Is" for boolean clarity)
+        if (methodName.Length > 2 &&
+            methodName.StartsWith("is", StringComparison.Ordinal) &&
+            char.IsUpper(methodName[2]))
+            return char.ToUpperInvariant(methodName[0]) + methodName[1..];
+
+        return methodName;
+    }
+
+    /// <summary>
+    /// Checks if a method name is a setter (starts with "set" followed by uppercase).
+    /// </summary>
+    public static bool IsSetterName(string methodName)
+    {
+        if (string.IsNullOrEmpty(methodName) || methodName.Length <= 3)
+            return false;
+
+        return methodName.StartsWith("set", StringComparison.Ordinal) &&
+               char.IsUpper(methodName[3]);
+    }
+
+    /// <summary>
+    /// Converts a setter method name to a property name (removes "set" prefix).
+    /// </summary>
+    public static string SetterToPropertyName(string methodName)
+    {
+        if (!IsSetterName(methodName))
+            return methodName;
+
+        return methodName[3..]; // Remove "set", keep PascalCase
+    }
 }

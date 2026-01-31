@@ -60,6 +60,9 @@ public class LuaEmitter : ILanguageEmitter
 
     public void EmitClassStart(CodeBuilder cb, string className, string? baseClass, ClassKind kind)
     {
+        // Emit native aliases at the top of the file
+        RawNativeBuilder.EmitLuaAliases(cb);
+
         switch (kind)
         {
             case ClassKind.Handle:
@@ -152,6 +155,30 @@ public class LuaEmitter : ILanguageEmitter
             cb.Dedent();
             cb.AppendLine("end");
         }
+        else if (kind == ClassKind.Handle && className == "Player")
+        {
+            cb.AppendLine();
+            cb.AppendLine("---Gets the player's server ID. In multiplayer, this is the player's unique server-side identifier.");
+            cb.AppendLine("---@return number");
+            cb.AppendLine("function Player:getServerId()");
+            cb.Indent();
+            // GET_PLAYER_SERVER_ID = 0x4D97BCC7 (CFX native)
+            cb.AppendLine("return inv(0x4D97BCC7, self.handle, rai())");
+            cb.Dedent();
+            cb.AppendLine("end");
+        }
+        else if (kind == ClassKind.Handle && className == "Entity")
+        {
+            cb.AppendLine();
+            cb.AppendLine("---Gets the network ID of this entity for network synchronization.");
+            cb.AppendLine("---@return number");
+            cb.AppendLine("function Entity:getNetworkId()");
+            cb.Indent();
+            // NETWORK_GET_NETWORK_ID_FROM_ENTITY = 0xF260AF6F43953316
+            cb.AppendLine("return inv(0xF260AF6F43953316, self.handle, rai())");
+            cb.Dedent();
+            cb.AppendLine("end");
+        }
 
         cb.AppendLine($"return {className}");
     }
@@ -199,8 +226,8 @@ public class LuaEmitter : ILanguageEmitter
         cb.Indent();
         // NETWORK_DOES_ENTITY_EXIST_WITH_NETWORK_ID = 0x38CE16C96BD11F2C
         // NETWORK_GET_ENTITY_FROM_NETWORK_ID = 0x5B912C3F653822E6
-        cb.AppendLine("if not Citizen.InvokeNative(0x38CE16C96BD11F2C, netId) then return nil end");
-        cb.AppendLine($"return {className}.fromHandle(Citizen.InvokeNative(0x5B912C3F653822E6, netId))");
+        cb.AppendLine("if not inv(0x38CE16C96BD11F2C, netId, rai()) then return nil end");
+        cb.AppendLine($"return {className}.fromHandle(inv(0x5B912C3F653822E6, netId, rai()))");
         cb.Dedent();
         cb.AppendLine("end");
         cb.AppendLine();
@@ -253,7 +280,8 @@ public class LuaEmitter : ILanguageEmitter
     public void EmitMethodStart(CodeBuilder cb, string className, string methodName, List<MethodParameter> parameters, string returnType, MethodKind kind)
     {
         var paramNames = string.Join(", ", parameters.Select(p => p.Name));
-        var separator = kind == MethodKind.Instance ? ":" : ".";
+        // Lua doesn't have getters/setters, so treat them as Instance methods
+        var separator = (kind == MethodKind.Instance || kind == MethodKind.Getter || kind == MethodKind.Setter) ? ":" : ".";
         cb.AppendLine($"function {className}{separator}{methodName}({paramNames})");
         cb.Indent();
     }
@@ -263,6 +291,11 @@ public class LuaEmitter : ILanguageEmitter
         cb.Dedent();
         cb.AppendLine("end");
         cb.AppendLine();
+    }
+
+    public void EmitGetterProxy(CodeBuilder cb, string propertyName, string methodName, string returnType)
+    {
+        // Lua doesn't support getters, so this is a no-op
     }
 
     public void EmitInvokeNative(CodeBuilder cb, string hash, List<string> args, TypeInfo returnType, List<TypeInfo> outputParamTypes)
@@ -275,7 +308,7 @@ public class LuaEmitter : ILanguageEmitter
             allArgs.Add(_typeMapper.GetResultMarker(returnType));
         }
 
-        var invokeExpr = $"Citizen.InvokeNative({string.Join(", ", allArgs)})";
+        var invokeExpr = $"inv({string.Join(", ", allArgs)})";
         var hasOutputParams = outputParamTypes.Count > 0;
 
         // If no output params, use the simple return logic

@@ -250,6 +250,45 @@ public class SharedClassGenerator
         var outputParams = parameters.Where(p => p.IsPureOutput).ToList();
         var outputParamTypes = outputParams.Select(p => p.Type).ToList();
 
+        var returnType = _emitter.TypeMapper.BuildCombinedReturnType(native.ReturnType, outputParamTypes);
+
+        // Determine if this should be a getter or setter (TypeScript only)
+        var actualKind = kind;
+        var actualMethodName = methodName;
+        var hasOutputParams = outputParams.Count > 0;
+
+        // Check if this is a getter candidate (for generating getter proxy when params are optional)
+        // Note: Methods with output params return tuples, which are still valid getter return types
+        var hasReturnValue = native.ReturnType.Category != TypeCategory.Void || hasOutputParams;
+        var isGetterCandidate = kind == MethodKind.Instance &&
+                                _emitter.Config.SupportsGetters &&
+                                hasReturnValue &&
+                                NameConverter.IsGetterName(methodName);
+
+        var allParamsOptional = inputParams.Count > 0 && inputParams.All(p => p.HasDefaultValue);
+        var shouldEmitGetterProxy = isGetterCandidate && allParamsOptional;
+
+        if (kind == MethodKind.Instance && _emitter.Config.SupportsGetters)
+        {
+            // Getter: parameterless, returns a value (including tuples), name starts with "get" or "is"
+            if (inputParams.Count == 0 &&
+                hasReturnValue &&
+                NameConverter.IsGetterName(methodName))
+            {
+                actualKind = MethodKind.Getter;
+                actualMethodName = NameConverter.GetterToPropertyName(methodName);
+            }
+            // Setter: single parameter, void return, name starts with "set"
+            else if (inputParams.Count == 1 &&
+                     native.ReturnType.Category == TypeCategory.Void &&
+                     !hasOutputParams &&
+                     NameConverter.IsSetterName(methodName))
+            {
+                actualKind = MethodKind.Setter;
+                actualMethodName = NameConverter.SetterToPropertyName(methodName);
+            }
+        }
+
         GenerateMethodDoc(cb, native, inputParams, outputParams);
 
         var methodParams = inputParams.Select(p => new MethodParameter(
@@ -258,8 +297,7 @@ public class SharedClassGenerator
             p.HasDefaultValue
         )).ToList();
 
-        var returnType = _emitter.TypeMapper.BuildCombinedReturnType(native.ReturnType, outputParamTypes);
-        _emitter.EmitMethodStart(cb, className, methodName, methodParams, returnType, kind);
+        _emitter.EmitMethodStart(cb, className, actualMethodName, methodParams, returnType, actualKind);
 
         // Build invoke args
         var args = new List<string>();
@@ -271,6 +309,13 @@ public class SharedClassGenerator
 
         _emitter.EmitInvokeNative(cb, native.Hash, args, native.ReturnType, outputParamTypes);
         _emitter.EmitMethodEnd(cb);
+
+        // If all params are optional and it's a getter candidate, also emit a getter proxy
+        if (shouldEmitGetterProxy)
+        {
+            var propertyName = NameConverter.GetterToPropertyName(methodName);
+            _emitter.EmitGetterProxy(cb, propertyName, methodName, returnType);
+        }
     }
 
     private void GenerateMethodDoc(CodeBuilder cb, NativeDefinition native, List<NativeParameter> inputParams, List<NativeParameter>? outputParams = null)

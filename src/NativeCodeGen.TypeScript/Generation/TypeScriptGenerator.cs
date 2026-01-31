@@ -695,7 +695,12 @@ public class TypeScriptGenerator : ICodeGenerator
             // GetHashKey accepts string|number since hashes can be pre-computed
             declare function GetHashKey(str: string | number): number;
 
-            export const inv = Citizen.invokeNative;
+            // Native invoke wrapper - can be overridden for logging/debugging
+            type InvokeFn = <T>(hash: string, ...args: any[]) => T;
+            let _inv: InvokeFn = Citizen.invokeNative;
+            export const inv = <T>(hash: string, ...args: any[]): T => _inv<T>(hash, ...args);
+            export const setInvokeNative = (fn: InvokeFn) => { _inv = fn; };
+
             export const rai = Citizen.resultAsInteger;
             export const raf = Citizen.resultAsFloat;
             export const ras = Citizen.resultAsString;

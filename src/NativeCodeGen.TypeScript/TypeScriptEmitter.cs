@@ -225,6 +225,32 @@ public class TypeScriptEmitter : ILanguageEmitter
             cb.Dedent();
             cb.AppendLine("}");
         }
+        else if (kind == ClassKind.Handle && className == "Player")
+        {
+            cb.AppendLine();
+            cb.AppendLine("/**");
+            cb.AppendLine(" * Gets the player's server ID. In multiplayer, this is the player's unique server-side identifier.");
+            cb.AppendLine(" */");
+            cb.AppendLine("get ServerId(): number {");
+            cb.Indent();
+            // GET_PLAYER_SERVER_ID = 0x4D97BCC7 (CFX native)
+            cb.AppendLine("return inv<number>('0x4D97BCC7', this.handle, rai());");
+            cb.Dedent();
+            cb.AppendLine("}");
+        }
+        else if (kind == ClassKind.Handle && className == "Entity")
+        {
+            cb.AppendLine();
+            cb.AppendLine("/**");
+            cb.AppendLine(" * Gets the network ID of this entity for network synchronization.");
+            cb.AppendLine(" */");
+            cb.AppendLine("get NetworkId(): number {");
+            cb.Indent();
+            // NETWORK_GET_NETWORK_ID_FROM_ENTITY = 0xF260AF6F43953316 (same as PED_TO_NET, VEH_TO_NET, OBJ_TO_NET)
+            cb.AppendLine("return inv<number>('0xF260AF6F43953316', this.handle, rai());");
+            cb.Dedent();
+            cb.AppendLine("}");
+        }
 
         cb.Dedent();
         cb.AppendLine("}");
@@ -329,6 +355,23 @@ public class TypeScriptEmitter : ILanguageEmitter
 
     public void EmitMethodStart(CodeBuilder cb, string className, string methodName, List<MethodParameter> parameters, string returnType, MethodKind kind)
     {
+        if (kind == MethodKind.Getter)
+        {
+            // Emit as getter property
+            cb.AppendLine($"get {methodName}(): {returnType} {{");
+            cb.Indent();
+            return;
+        }
+
+        if (kind == MethodKind.Setter)
+        {
+            // Emit as setter property - single parameter
+            var param = parameters.First();
+            cb.AppendLine($"set {methodName}({param.Name}: {param.Type}) {{");
+            cb.Indent();
+            return;
+        }
+
         var paramString = string.Join(", ", parameters.Select(p =>
         {
             // Rest parameters (starting with ...) need array type - use any[] since variadic can accept multiple types
@@ -346,6 +389,16 @@ public class TypeScriptEmitter : ILanguageEmitter
 
     public void EmitMethodEnd(CodeBuilder cb)
     {
+        cb.Dedent();
+        cb.AppendLine("}");
+        cb.AppendLine();
+    }
+
+    public void EmitGetterProxy(CodeBuilder cb, string propertyName, string methodName, string returnType)
+    {
+        cb.AppendLine($"get {propertyName}(): {returnType} {{");
+        cb.Indent();
+        cb.AppendLine($"return this.{methodName}();");
         cb.Dedent();
         cb.AppendLine("}");
         cb.AppendLine();
@@ -383,6 +436,11 @@ public class TypeScriptEmitter : ILanguageEmitter
             else if (returnType.Category == TypeCategory.Hash)
             {
                 invokeExpr = $"({invokeExpr}) & 0xFFFFFFFF";
+            }
+            else if (returnType.IsBool)
+            {
+                // Coerce 0/1 to true/false
+                invokeExpr = $"!!{invokeExpr}";
             }
 
             if (returnType.Category == TypeCategory.Void)
