@@ -716,12 +716,12 @@ public class ProtobufSerializationTests
             "ExportDatabase", "ExportNamespace", "ExportNative", "ExportParameter",
             "ExportEnum", "ExportEnumMember", "ExportStruct", "ExportStructField",
             "ExportSharedExample", "ExportSharedExampleCode",
-            "ExportTypeInfo", "ExportTypeEntry", "ExportCallout"
+            "ExportTypeInfo", "ExportTypeEntry"
         };
 
         var expectedEnums = new[]
         {
-            "ParamFlags", "FieldFlags", "ExportTypeCategory", "CalloutType"
+            "ParamFlags", "FieldFlags", "ExportTypeCategory"
         };
 
         foreach (var expected in expectedClasses)

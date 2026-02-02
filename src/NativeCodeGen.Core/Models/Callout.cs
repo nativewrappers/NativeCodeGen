@@ -1,8 +1,5 @@
-using ProtoBuf;
-
 namespace NativeCodeGen.Core.Models;
 
-[ProtoContract]
 public enum CalloutType
 {
     Note = 0,

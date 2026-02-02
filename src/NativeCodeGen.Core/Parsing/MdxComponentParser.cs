@@ -75,6 +75,7 @@ public partial class MdxComponentParser
     /// <summary>
     /// Converts description text for code generation output.
     /// Transforms [enum: Name] and [struct: Name] to {@link Name} for JSDoc.
+    /// Formats [note:], [warning:], [info:], [danger:] as readable callouts.
     /// </summary>
     public static string FormatDescriptionForCodeGen(string? content)
     {
@@ -87,7 +88,31 @@ public partial class MdxComponentParser
         // Convert [struct: Name] to {@link Name}
         result = StructAttributeRegex().Replace(result, "{@link $1}");
 
+        // Format callouts as @remarks tags (JSDoc/TypeDoc compatible)
+        result = NoteAttributeRegex().Replace(result, m => FormatCalloutAsRemarks(m.Groups[1].Value));
+        result = WarningAttributeRegex().Replace(result, m => FormatCalloutAsRemarks(m.Groups[1].Value, "Warning"));
+        result = InfoAttributeRegex().Replace(result, m => FormatCalloutAsRemarks(m.Groups[1].Value));
+        result = DangerAttributeRegex().Replace(result, m => FormatCalloutAsRemarks(m.Groups[1].Value, "Danger"));
+
         return result;
+    }
+
+    private static string FormatCalloutAsRemarks(string content, string? prefix = null)
+    {
+        var trimmed = content.Trim();
+        // Check for title | description format
+        var pipeIndex = trimmed.IndexOf('|');
+        if (pipeIndex >= 0)
+        {
+            var title = trimmed[..pipeIndex].Trim();
+            var description = trimmed[(pipeIndex + 1)..].Trim();
+            trimmed = $"{title}: {description}";
+        }
+
+        // Add newlines before and after to separate from surrounding text
+        return prefix != null
+            ? $"\n@remarks **{prefix}:** {trimmed}\n"
+            : $"\n@remarks {trimmed}\n";
     }
 
     public List<EmbeddedEnumRef> ParseEmbeddedEnums(string content)
