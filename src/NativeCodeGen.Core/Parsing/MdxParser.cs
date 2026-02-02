@@ -40,7 +40,8 @@ public class MdxParser
             Aliases = frontmatter.Aliases,
             ApiSet = frontmatter.Apiset,
             SourceFile = filePath,
-            MethodNameOverride = frontmatter.MethodName
+            MethodNameOverride = frontmatter.MethodName,
+            RelatedNatives = frontmatter.RelatedNatives
         };
 
         // Track what we've parsed
@@ -201,6 +202,18 @@ public class MdxParser
 
                 case ParagraphBlock returnParagraph when currentSection?.Equals("Return value", StringComparison.OrdinalIgnoreCase) == true:
                     native.ReturnDescription = GetParagraphText(returnParagraph);
+                    break;
+
+                case FencedCodeBlock exampleBlock when currentSection?.Equals("Examples", StringComparison.OrdinalIgnoreCase) == true:
+                    var exampleCode = exampleBlock.Lines.ToString().Trim();
+                    if (!string.IsNullOrWhiteSpace(exampleCode))
+                    {
+                        native.Examples.Add(new CodeExample
+                        {
+                            Language = string.IsNullOrEmpty(exampleBlock.Info) ? "typescript" : exampleBlock.Info,
+                            Code = exampleCode
+                        });
+                    }
                     break;
             }
         }

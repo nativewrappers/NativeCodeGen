@@ -217,101 +217,29 @@ public class TypeScriptGenerator : ICodeGenerator
 
     private static string GenerateRawReadme(GeneratorOptions options)
     {
-        return $$"""
-            # {{options.PackageName ?? "@natives/generated"}}
-
-            Auto-generated native function bindings with tree-shaking support.
-
-            ## Installation
-
-            ```bash
-            npm install {{options.PackageName ?? "@natives/generated"}}
-            ```
-
-            ## Usage
-
-            ### Direct imports (recommended for tree-shaking)
-
-            ```typescript
-            import { GetEntityCoords, CreatePed } from '{{options.PackageName ?? "@natives/generated"}}';
-
-            const coords = GetEntityCoords(entity, true);
-            ```
-
-            ### With esbuild plugin (auto-import)
-
-            ```javascript
-            import { nativeTreeshake } from '{{options.PackageName ?? "@natives/generated"}}/plugin';
-            import esbuild from 'esbuild';
-
-            esbuild.build({
-              entryPoints: ['src/index.ts'],
-              bundle: true,
-              plugins: [nativeTreeshake({
-                natives: './node_modules/{{options.PackageName ?? "@natives/generated"}}/dist/natives.js'
-              })]
-            });
-            ```
-
-            Then use natives directly without imports:
-
-            ```typescript
-            // No import needed - plugin handles it
-            const coords = GetEntityCoords(entity, true);
-            const ped = CreatePed(model, x, y, z, heading, false, false);
-            ```
-
-            ## Tree-shaking
-
-            Both approaches support tree-shaking - only the natives you actually use will be included in your bundle.
-            """;
+        var template = LoadEmbeddedResource("README.raw.md");
+        var packageName = options.PackageName ?? "@natives/generated";
+        return template.Replace("{{PACKAGE_NAME}}", packageName);
     }
 
     private static string GenerateClassReadme(GeneratorOptions options)
     {
-        return $$"""
-            # {{options.PackageName ?? "@natives/generated"}}
+        var template = LoadEmbeddedResource("README.classes.md");
+        var packageName = options.PackageName ?? "@natives/generated";
+        return template.Replace("{{PACKAGE_NAME}}", packageName);
+    }
 
-            Auto-generated native function bindings with class-based API.
+    private static string LoadEmbeddedResource(string resourceName)
+    {
+        var assembly = typeof(TypeScriptGenerator).Assembly;
+        var fullName = $"NativeCodeGen.TypeScript.Resources.{resourceName}";
 
-            ## Installation
+        using var stream = assembly.GetManifestResourceStream(fullName);
+        if (stream == null)
+            throw new InvalidOperationException($"Embedded resource '{fullName}' not found");
 
-            ```bash
-            npm install {{options.PackageName ?? "@natives/generated"}}
-            ```
-
-            ## Usage
-
-            ```typescript
-            import { Entity, Ped, Vehicle, World } from '{{options.PackageName ?? "@natives/generated"}}';
-
-            // Use handle classes
-            const ped = new Ped(playerPedId);
-            const coords = ped.getCoords(true);
-            const vehicle = ped.getCurrentVehicle();
-
-            // Use namespace utilities
-            const weather = World.getWeatherTypeTransition();
-            ```
-
-            ## API
-
-            ### Handle Classes
-            - `Entity` - Base class for all game entities
-            - `Ped` - Pedestrian/character entities
-            - `Vehicle` - Vehicle entities
-            - `Object` - Prop/object entities
-            - `Player` - Player-specific functions
-            - `Blip` - Map blip functions
-            - And more...
-
-            ### Namespace Utilities
-            Static classes for natives that don't operate on handles:
-            - `World` - Weather, time, etc.
-            - `Streaming` - Asset loading
-            - `Graphics` - Drawing, particles
-            - And more...
-            """;
+        using var reader = new StreamReader(stream);
+        return reader.ReadToEnd();
     }
 
     private void GenerateRawOutput(NativeDatabase db, string outputPath)
@@ -322,18 +250,23 @@ public class TypeScriptGenerator : ICodeGenerator
         Directory.CreateDirectory(nativesDir);
 
         var builder = new RawNativeBuilder(Language.TypeScript, _emitter.TypeMapper);
+        var declBuilder = new RawNativeBuilder(Language.TypeScript, _emitter.TypeMapper);
 
         foreach (var ns in db.Namespaces)
         {
             builder.Clear();
+            declBuilder.Clear();
             builder.EmitImports();
+            declBuilder.EmitDeclarationImports();
 
             foreach (var native in ns.Natives)
             {
                 builder.EmitFunction(native, BindingStyle.Export);
+                declBuilder.EmitDeclaration(native, BindingStyle.Export);
             }
 
             File.WriteAllText(Path.Combine(nativesDir, $"{ns.Name}.ts"), builder.ToString());
+            File.WriteAllText(Path.Combine(nativesDir, $"{ns.Name}.d.ts"), declBuilder.ToString());
         }
 
         GenerateRawIndex(db, outputPath);
@@ -356,7 +289,10 @@ public class TypeScriptGenerator : ICodeGenerator
 
         var bindingStyle = useExports ? BindingStyle.Export : BindingStyle.Global;
         var builder = new RawNativeBuilder(Language.TypeScript, _emitter.TypeMapper);
+        var declBuilder = new RawNativeBuilder(Language.TypeScript, _emitter.TypeMapper);
+
         builder.EmitImports(singleFile: true);
+        declBuilder.EmitDeclarationImports(singleFile: true);
 
         foreach (var ns in db.Namespaces.OrderBy(n => n.Name))
         {
@@ -368,10 +304,12 @@ public class TypeScriptGenerator : ICodeGenerator
                     : baseName;
 
                 builder.EmitFunction(native, bindingStyle, nameOverride: finalName);
+                declBuilder.EmitDeclaration(native, bindingStyle, nameOverride: finalName);
             }
         }
 
         File.WriteAllText(Path.Combine(outputPath, "natives.ts"), builder.ToString());
+        File.WriteAllText(Path.Combine(outputPath, "natives.d.ts"), declBuilder.ToString());
         GenerateSingleFileIndex(db, outputPath, useExports);
     }
 
@@ -712,6 +650,20 @@ public class TypeScriptGenerator : ICodeGenerator
             export const pvfi = Citizen.pointerValueFloatInitialized;
             export const _h = typeof GetHashKey !== 'undefined' ? GetHashKey : (s: string | number) => typeof s === 'number' ? s : 0;
             export const f = (n: number) => n + 0.00000001;
+
+            // Primitive type aliases - all are numbers at runtime but help document expected types
+            export type int = number;
+            export type uint = number;
+            export type float = number;
+            export type Hash = string | number;
+            export type u8 = number;
+            export type u16 = number;
+            export type u32 = number;
+            export type u64 = number;
+            export type i8 = number;
+            export type i16 = number;
+            export type i32 = number;
+            export type i64 = number;
 
             // Non-class handle type aliases (these are just numbers at runtime)
             export type ScrHandle = number;

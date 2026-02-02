@@ -17,7 +17,7 @@ public static class ArgumentBuilder
     /// - Output-only pointers: pass pointer placeholder
     /// - Input+output pointers (@in): pass initialized pointer
     /// </summary>
-    public static string GetArgumentExpression(NativeParameter param, ITypeMapper typeMapper, LanguageConfig config, bool rawMode = false)
+    public static string GetArgumentExpression(NativeParameter param, ITypeMapper typeMapper, LanguageConfig config, bool rawMode = false, string? mappedDefaultValue = null)
     {
         var f = config.FloatWrapperAlias;
         var h = config.HashWrapperAlias;
@@ -78,11 +78,29 @@ public static class ArgumentBuilder
         // Float type - wrap with f() to prevent bundler optimization
         if (param.Type.IsFloat)
         {
-            return useFloat ? $"{f}({param.Name})" : param.Name;
+            var expr = useFloat ? $"{f}({param.Name})" : param.Name;
+            return WrapWithInlineDefault(expr, param.Name, mappedDefaultValue, config);
         }
 
         // Regular value
-        return param.Name;
+        return WrapWithInlineDefault(param.Name, param.Name, mappedDefaultValue, config);
+    }
+
+    /// <summary>
+    /// Wraps an expression with inline default value check for Lua.
+    /// Pattern: paramName == nil and defaultValue or expression
+    /// </summary>
+    private static string WrapWithInlineDefault(string expression, string paramName, string? mappedDefaultValue, LanguageConfig config)
+    {
+        if (!config.UseInlineDefaults || mappedDefaultValue == null)
+            return expression;
+
+        // For simple param references, use: param == nil and default or param
+        // For complex expressions (like f(param)), we need parentheses
+        if (expression == paramName)
+            return $"{paramName} == nil and {mappedDefaultValue} or {paramName}";
+
+        return $"({paramName} == nil and {mappedDefaultValue} or {expression})";
     }
 
     /// <summary>

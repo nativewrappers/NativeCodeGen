@@ -1,4 +1,5 @@
 using NativeCodeGen.Core.Models;
+using NativeCodeGen.Core.Parsing;
 using NativeCodeGen.Core.Utilities;
 
 namespace NativeCodeGen.Core.Generation;
@@ -248,118 +249,233 @@ public class SharedClassGenerator
     {
         var inputParams = parameters.Where(p => !p.IsPureOutput).ToList();
         var outputParams = parameters.Where(p => p.IsPureOutput).ToList();
-        var outputParamTypes = outputParams.Select(p => p.Type).ToList();
-
-        var returnType = _emitter.TypeMapper.BuildCombinedReturnType(native.ReturnType, outputParamTypes);
-
-        // Determine if this should be a getter or setter (TypeScript only)
-        var actualKind = kind;
-        var actualMethodName = methodName;
         var hasOutputParams = outputParams.Count > 0;
-
-        // Check if this is a getter candidate (for generating getter proxy when params are optional)
-        // Note: Methods with output params return tuples, which are still valid getter return types
         var hasReturnValue = native.ReturnType.Category != TypeCategory.Void || hasOutputParams;
-        var isGetterCandidate = kind == MethodKind.Instance &&
-                                _emitter.Config.SupportsGetters &&
-                                hasReturnValue &&
-                                NameConverter.IsGetterName(methodName);
 
-        var allParamsOptional = inputParams.Count > 0 && inputParams.All(p => p.HasDefaultValue);
-        var shouldEmitGetterProxy = isGetterCandidate && allParamsOptional;
+        var methodParams = BuildMethodParams(inputParams);
+        var args = BuildInvokeArgs(firstArg, parameters);
 
-        if (kind == MethodKind.Instance && _emitter.Config.SupportsGetters)
+        // Classify the method type
+        var classification = ClassifyMethod(kind, methodName, inputParams, hasReturnValue, hasOutputParams, native.ReturnType);
+
+        // Emit based on classification
+        if (classification.EmitChainableOnly)
         {
-            // Getter: parameterless, returns a value (including tuples), name starts with "get" or "is"
-            if (inputParams.Count == 0 &&
-                hasReturnValue &&
-                NameConverter.IsGetterName(methodName))
+            // Chainable setter only (Lua all setters, TypeScript multi-param setters)
+            EmitSingleMethod(cb, native, className, methodName, methodParams, args,
+                inputParams, outputParams, MethodKind.ChainableSetter, chainable: true);
+        }
+        else
+        {
+            // Standard method (possibly a property getter/setter in TypeScript)
+            var outputParamTypes = outputParams.Select(p => p.Type).ToList();
+            var returnType = _emitter.TypeMapper.BuildCombinedReturnType(native.ReturnType, outputParamTypes);
+            EmitSingleMethod(cb, native, className, classification.MethodName, methodParams, args,
+                inputParams, outputParams, classification.Kind, chainable: false, returnType);
+
+            // Getter proxy for methods with all optional params
+            if (classification.EmitGetterProxy)
             {
-                actualKind = MethodKind.Getter;
-                actualMethodName = NameConverter.GetterToPropertyName(methodName);
+                var propertyName = NameConverter.GetterToPropertyName(methodName);
+                _emitter.EmitGetterProxy(cb, propertyName, methodName, returnType);
             }
-            // Setter: single parameter, void return, name starts with "set"
-            else if (inputParams.Count == 1 &&
-                     native.ReturnType.Category == TypeCategory.Void &&
-                     !hasOutputParams &&
-                     NameConverter.IsSetterName(methodName))
+
+            // Additional chainable method for TypeScript property setters
+            if (classification.EmitAdditionalChainable)
             {
-                actualKind = MethodKind.Setter;
-                actualMethodName = NameConverter.SetterToPropertyName(methodName);
+                EmitSingleMethod(cb, native, className, methodName, methodParams, args,
+                    inputParams, outputParams, MethodKind.ChainableSetter, chainable: true);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Classifies a method to determine how it should be emitted.
+    /// </summary>
+    private MethodClassification ClassifyMethod(
+        MethodKind kind,
+        string methodName,
+        List<NativeParameter> inputParams,
+        bool hasReturnValue,
+        bool hasOutputParams,
+        TypeInfo returnType)
+    {
+        var result = new MethodClassification { Kind = kind, MethodName = methodName };
+
+        if (kind != MethodKind.Instance)
+            return result;
+
+        var isVoidMethod = returnType.Category == TypeCategory.Void && !hasOutputParams;
+        var isSetter = isVoidMethod && NameConverter.IsSetterName(methodName);
+        var isSingleParamSetter = isSetter && inputParams.Count == 1;
+        var isGetter = hasReturnValue && NameConverter.IsGetterName(methodName);
+        var allParamsOptional = inputParams.Count > 0 && inputParams.All(p => p.HasDefaultValue);
+
+        if (_emitter.Config.SupportsGetters)
+        {
+            // TypeScript: use property syntax for getters/setters
+            if (inputParams.Count == 0 && isGetter)
+            {
+                result.Kind = MethodKind.Getter;
+                result.MethodName = NameConverter.GetterToPropertyName(methodName);
+            }
+            else if (isSingleParamSetter)
+            {
+                result.Kind = MethodKind.Setter;
+                result.MethodName = NameConverter.SetterToPropertyName(methodName);
+                result.EmitAdditionalChainable = true; // Also emit setX() method
+            }
+            else if (isSetter)
+            {
+                // Multi-param setter: only chainable method
+                result.EmitChainableOnly = true;
+            }
+
+            result.EmitGetterProxy = isGetter && allParamsOptional;
+        }
+        else
+        {
+            // Lua: all setters become chainable
+            result.EmitChainableOnly = isSetter;
+        }
+
+        return result;
+    }
+
+    private record MethodClassification
+    {
+        public MethodKind Kind { get; set; }
+        public string MethodName { get; set; } = "";
+        public bool EmitChainableOnly { get; set; }
+        public bool EmitAdditionalChainable { get; set; }
+        public bool EmitGetterProxy { get; set; }
+    }
+
+    /// <summary>
+    /// Emits a single method with the given configuration.
+    /// </summary>
+    private void EmitSingleMethod(
+        CodeBuilder cb,
+        NativeDefinition native,
+        string className,
+        string methodName,
+        List<MethodParameter> methodParams,
+        List<string> args,
+        List<NativeParameter> inputParams,
+        List<NativeParameter> outputParams,
+        MethodKind kind,
+        bool chainable,
+        string? returnTypeOverride = null)
+    {
+        var outputParamTypes = outputParams.Select(p => p.Type).ToList();
+        var returnType = chainable
+            ? (_emitter.Config.SupportsGetters ? "this" : className)
+            : (returnTypeOverride ?? _emitter.TypeMapper.BuildCombinedReturnType(native.ReturnType, outputParamTypes));
+
+        // Generate documentation
+        EmitMethodDoc(cb, native, inputParams, outputParams, returnType, chainable);
+
+        // Emit method
+        _emitter.EmitMethodStart(cb, className, methodName, methodParams, returnType, kind);
+        _emitter.EmitInvokeNative(cb, native.Hash, args, native.ReturnType, chainable ? [] : outputParamTypes);
+
+        if (chainable)
+        {
+            cb.AppendLine($"return {_emitter.SelfReference};");
+        }
+
+        _emitter.EmitMethodEnd(cb);
+    }
+
+    /// <summary>
+    /// Generates method documentation with proper descriptions and examples.
+    /// </summary>
+    private void EmitMethodDoc(
+        CodeBuilder cb,
+        NativeDefinition native,
+        List<NativeParameter> inputParams,
+        List<NativeParameter> outputParams,
+        string returnType,
+        bool chainable)
+    {
+        var doc = _emitter.CreateDocBuilder()
+            .AddDescription(MdxComponentParser.FormatDescriptionForCodeGen(native.Description));
+
+        foreach (var param in inputParams)
+        {
+            var type = _emitter.TypeMapper.MapType(param.Type, param.IsNullable);
+            doc.AddParam(param.Name, type, MdxComponentParser.FormatDescriptionForCodeGen(param.Description));
+        }
+
+        if (chainable)
+        {
+            doc.AddReturn(returnType, "The instance for method chaining");
+        }
+        else
+        {
+            var hasReturn = native.ReturnType.Category != TypeCategory.Void || outputParams.Count > 0;
+            if (hasReturn)
+            {
+                var description = BuildReturnDescription(native, outputParams);
+                doc.AddReturn(returnType, description);
             }
         }
 
-        GenerateMethodDoc(cb, native, inputParams, outputParams);
+        foreach (var example in native.Examples)
+        {
+            doc.AddExample(example.Code, example.Language);
+        }
 
-        var methodParams = inputParams.Select(p => new MethodParameter(
+        doc.Render(cb);
+    }
+
+    /// <summary>
+    /// Builds the return description combining native return description with output param descriptions.
+    /// </summary>
+    private static string BuildReturnDescription(NativeDefinition native, List<NativeParameter> outputParams)
+    {
+        if (outputParams.Count == 0)
+            return MdxComponentParser.FormatDescriptionForCodeGen(native.ReturnDescription) ?? "";
+
+        var parts = new List<string>();
+        if (!string.IsNullOrWhiteSpace(native.ReturnDescription))
+        {
+            parts.Add(MdxComponentParser.FormatDescriptionForCodeGen(native.ReturnDescription)!);
+        }
+
+        foreach (var outParam in outputParams)
+        {
+            var paramDesc = !string.IsNullOrWhiteSpace(outParam.Description)
+                ? $"{outParam.Name}: {MdxComponentParser.FormatDescriptionForCodeGen(outParam.Description)}"
+                : outParam.Name;
+            parts.Add(paramDesc);
+        }
+
+        return string.Join("; ", parts);
+    }
+
+    private List<MethodParameter> BuildMethodParams(List<NativeParameter> inputParams) =>
+        inputParams.Select(p => new MethodParameter(
             p.Name,
-            _emitter.TypeMapper.MapType(p.Type, p.IsNotNull),
-            p.HasDefaultValue
+            _emitter.TypeMapper.MapType(p.Type, p.IsNullable),
+            p.DefaultValue != null ? _emitter.MapDefaultValue(p.DefaultValue, p.Type) : null
         )).ToList();
 
-        _emitter.EmitMethodStart(cb, className, actualMethodName, methodParams, returnType, actualKind);
-
-        // Build invoke args
+    private List<string> BuildInvokeArgs(string? firstArg, List<NativeParameter> parameters)
+    {
         var args = new List<string>();
         if (firstArg != null)
             args.Add(firstArg);
 
         foreach (var param in parameters)
-            args.Add(ArgumentBuilder.GetArgumentExpression(param, _emitter.TypeMapper, _emitter.Config));
-
-        _emitter.EmitInvokeNative(cb, native.Hash, args, native.ReturnType, outputParamTypes);
-        _emitter.EmitMethodEnd(cb);
-
-        // If all params are optional and it's a getter candidate, also emit a getter proxy
-        if (shouldEmitGetterProxy)
         {
-            var propertyName = NameConverter.GetterToPropertyName(methodName);
-            _emitter.EmitGetterProxy(cb, propertyName, methodName, returnType);
-        }
-    }
-
-    private void GenerateMethodDoc(CodeBuilder cb, NativeDefinition native, List<NativeParameter> inputParams, List<NativeParameter>? outputParams = null)
-    {
-        var doc = _emitter.CreateDocBuilder()
-            .AddDescription(native.Description);
-
-        foreach (var param in inputParams)
-        {
-            var type = _emitter.TypeMapper.MapType(param.Type, param.IsNotNull);
-            doc.AddParam(param.Name, type, param.Description);
+            var mappedDefault = param.DefaultValue != null
+                ? _emitter.MapDefaultValue(param.DefaultValue, param.Type)
+                : null;
+            args.Add(ArgumentBuilder.GetArgumentExpression(param, _emitter.TypeMapper, _emitter.Config, false, mappedDefault));
         }
 
-        var outputParamTypes = outputParams?.Select(p => p.Type).ToList() ?? new List<TypeInfo>();
-        var hasOutputParams = outputParamTypes.Count > 0;
-        var hasReturn = native.ReturnType.Category != TypeCategory.Void || hasOutputParams;
-
-        if (hasReturn)
-        {
-            var returnType = _emitter.TypeMapper.BuildCombinedReturnType(native.ReturnType, outputParamTypes);
-            var description = native.ReturnDescription ?? "";
-
-            // Add output param descriptions to return doc
-            if (hasOutputParams && outputParams != null)
-            {
-                var parts = new List<string>();
-                if (!string.IsNullOrWhiteSpace(native.ReturnDescription))
-                {
-                    parts.Add(native.ReturnDescription);
-                }
-                foreach (var outParam in outputParams)
-                {
-                    var paramDesc = !string.IsNullOrWhiteSpace(outParam.Description)
-                        ? $"{outParam.Name}: {outParam.Description}"
-                        : outParam.Name;
-                    parts.Add(paramDesc);
-                }
-                description = string.Join("; ", parts);
-            }
-
-            doc.AddReturn(returnType, description);
-        }
-
-        doc.Render(cb);
+        return args;
     }
 
     private bool IsInstanceMethod(NativeDefinition native, string className)

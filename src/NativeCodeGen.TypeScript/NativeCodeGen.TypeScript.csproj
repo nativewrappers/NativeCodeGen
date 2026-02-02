@@ -12,6 +12,8 @@
 
   <ItemGroup>
     <EmbeddedResource Include="Resources\native-treeshake.js" />
+    <EmbeddedResource Include="Resources\README.raw.md" />
+    <EmbeddedResource Include="Resources\README.classes.md" />
   </ItemGroup>
 
 </Project>

@@ -244,7 +244,7 @@ public class TypeInfoTests
 
     [Theory]
     [InlineData("@this")]
-    [InlineData("@notnull")]
+    [InlineData("@nullable")]
     [InlineData("@in")]
     public void ValidAttributes_ContainsKnownAttributes(string attr)
     {
@@ -254,9 +254,9 @@ public class TypeInfoTests
     [Theory]
     [InlineData("@out")]
     [InlineData("@optional")]
-    [InlineData("@nullable")]
+    [InlineData("@notnull")]
     [InlineData("this")]
-    [InlineData("notnull")]
+    [InlineData("nullable")]
     public void ValidAttributes_DoesNotContainUnknown(string attr)
     {
         Assert.False(TypeInfo.ValidAttributes.Contains(attr));

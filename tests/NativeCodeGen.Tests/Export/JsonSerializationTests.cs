@@ -165,13 +165,13 @@ public class JsonSerializationTests
         {
             Name = "ped",
             Type = "Ped",
-            Flags = ParamFlags.This | ParamFlags.NotNull
+            Flags = ParamFlags.This | ParamFlags.Nullable
         };
 
         var json = JsonSerializer.Serialize(param, _jsonOptions);
 
         Assert.Contains("\"flags\":", json);
-        // Flags are serialized as integer (6 = This | NotNull = 2 | 4)
+        // Flags are serialized as integer (6 = This | Nullable = 2 | 4)
         Assert.Contains("6", json);
     }
 

@@ -39,7 +39,7 @@ public class GetterProxyTests
         var result = generator.GenerateHandleClass("Entity", null, [native]);
 
         // Should have both the function and the getter proxy
-        Assert.Contains("getCoords(alive?: boolean, realCoords?: boolean): Vector3", result);
+        Assert.Contains("getCoords(alive: boolean = false, realCoords: boolean = false): Vector3", result);
         Assert.Contains("get Coords(): Vector3 {", result);
         Assert.Contains("return this.getCoords();", result);
     }

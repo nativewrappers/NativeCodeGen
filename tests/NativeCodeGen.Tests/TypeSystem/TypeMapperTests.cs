@@ -8,15 +8,15 @@ public class TypeMapperTests
     private readonly TypeMapper _mapper = new();
 
     [Theory]
-    [InlineData("int", "number")]
-    [InlineData("float", "number")]
-    [InlineData("double", "number")]
-    [InlineData("u32", "number")]
-    [InlineData("i32", "number")]
-    [InlineData("f32", "number")]
+    [InlineData("int", "int")]
+    [InlineData("float", "float")]
+    [InlineData("double", "float")]
+    [InlineData("u32", "u32")]
+    [InlineData("i32", "i32")]
+    [InlineData("f32", "float")]
     [InlineData("BOOL", "boolean")]
     [InlineData("bool", "boolean")]
-    public void MapType_Primitives_ReturnsNumber(string typeName, string expected)
+    public void MapType_Primitives_ReturnsTypeAlias(string typeName, string expected)
     {
         var typeInfo = TypeInfo.Parse(typeName);
         var result = _mapper.MapType(typeInfo);
@@ -56,19 +56,19 @@ public class TypeMapperTests
     }
 
     [Fact]
-    public void MapType_NullableString_ReturnsUnion()
+    public void MapType_NonNullableString_ReturnsString()
     {
         var typeInfo = TypeInfo.Parse("char*");
-        var result = _mapper.MapType(typeInfo, isNotNull: false);
-        Assert.Equal("string | null", result);
+        var result = _mapper.MapType(typeInfo, isNullable: false);
+        Assert.Equal("string", result);
     }
 
     [Fact]
-    public void MapType_NotNullString_ReturnsString()
+    public void MapType_NullableString_ReturnsUnion()
     {
         var typeInfo = TypeInfo.Parse("char*");
-        var result = _mapper.MapType(typeInfo, isNotNull: true);
-        Assert.Equal("string", result);
+        var result = _mapper.MapType(typeInfo, isNullable: true);
+        Assert.Equal("string | null", result);
     }
 
     [Theory]
@@ -111,7 +111,7 @@ public class TypeMapperTests
     {
         var typeInfo = TypeInfo.Parse("int*");
         var result = _mapper.MapType(typeInfo);
-        Assert.Equal("number", result);
+        Assert.Equal("int", result);
     }
 
     [Fact]

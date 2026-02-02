@@ -141,7 +141,7 @@ void SET_PED_HEALTH(@this Ped ped, int health);
     }
 
     [Fact]
-    public void Parse_WithNotNullAttribute_ParsesCorrectly()
+    public void Parse_WithNullableAttribute_ParsesCorrectly()
     {
         var mdx = @"---
 ns: MISC
@@ -150,7 +150,7 @@ ns: MISC
 
 ```c
 // 0x1234567890ABCDEF
-Hash GET_HASH_KEY(@notnull char* str);
+Hash GET_HASH_KEY(@nullable char* str);
 ```
 
 ## Parameters
@@ -160,7 +160,7 @@ Hash GET_HASH_KEY(@notnull char* str);
         var result = _parser.Parse(mdx, "test.mdx");
 
         Assert.True(result.IsSuccess, string.Join("; ", result.Errors.Select(e => e.Message)));
-        Assert.True(result.Value!.Parameters[0].IsNotNull);
+        Assert.True(result.Value!.Parameters[0].IsNullable);
     }
 
     [Fact]
@@ -343,7 +343,7 @@ ns: PED
 
 ```c
 // 0xABCDEF1234567890
-BOOL COMPLEX_NATIVE(@this Ped ped, @notnull char* name, int* outValue, float speed = 1.0f);
+BOOL COMPLEX_NATIVE(@this Ped ped, @nullable char* name, int* outValue, float speed = 1.0f);
 ```
 
 ## Parameters
@@ -361,7 +361,7 @@ BOOL COMPLEX_NATIVE(@this Ped ped, @notnull char* name, int* outValue, float spe
         Assert.True(result.Value.Parameters[0].IsThis);
         Assert.Equal("Ped", result.Value.Parameters[0].Type.Name);
 
-        Assert.True(result.Value.Parameters[1].IsNotNull);
+        Assert.True(result.Value.Parameters[1].IsNullable);
 
         Assert.True(result.Value.Parameters[2].IsOutput);
 

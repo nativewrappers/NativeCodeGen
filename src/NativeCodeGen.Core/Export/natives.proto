@@ -8,7 +8,7 @@ enum ParamFlags {
   PARAM_NONE = 0;
   PARAM_OUTPUT = 1;    // Pointer output parameter
   PARAM_THIS = 2;      // @this - instance method receiver
-  PARAM_NOTNULL = 4;   // @notnull - string cannot be null
+  PARAM_NULLABLE = 4;  // @nullable - string can be null
   PARAM_IN = 8;        // @in - input+output pointer
 }
 

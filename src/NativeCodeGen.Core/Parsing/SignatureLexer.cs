@@ -6,11 +6,13 @@ public enum TokenType
     Identifier,     // Type names, parameter names
     LParen,         // (
     RParen,         // )
+    LBracket,       // [
+    RBracket,       // ]
     Comma,          // ,
     Star,           // *
     Equals,         // =
     Semicolon,      // ;
-    Attribute,      // @this, @notnull
+    Attribute,      // @this, @nullable
     Number,         // Numeric literals
     String,         // String literals
     Minus,          // -
@@ -204,6 +206,8 @@ public class SignatureLexer
         {
             '(' => new Token { Type = TokenType.LParen, Value = "(", Position = startPos, Line = startLine, Column = startCol },
             ')' => new Token { Type = TokenType.RParen, Value = ")", Position = startPos, Line = startLine, Column = startCol },
+            '[' => new Token { Type = TokenType.LBracket, Value = "[", Position = startPos, Line = startLine, Column = startCol },
+            ']' => new Token { Type = TokenType.RBracket, Value = "]", Position = startPos, Line = startLine, Column = startCol },
             ',' => new Token { Type = TokenType.Comma, Value = ",", Position = startPos, Line = startLine, Column = startCol },
             '*' => new Token { Type = TokenType.Star, Value = "*", Position = startPos, Line = startLine, Column = startCol },
             '=' => new Token { Type = TokenType.Equals, Value = "=", Position = startPos, Line = startLine, Column = startCol },

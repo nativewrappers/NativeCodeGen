@@ -10,7 +10,7 @@ public interface ITypeMapper
     /// <summary>
     /// Maps a C type to the target language type.
     /// </summary>
-    string MapType(TypeInfo type, bool isNotNull = false, bool forReturn = false);
+    string MapType(TypeInfo type, bool isNullable = false, bool forReturn = false);
 
     /// <summary>
     /// Gets the expression for marking a return type in native invocation.

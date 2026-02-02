@@ -14,6 +14,16 @@ public class TypeInfo
     /// </summary>
     public string? EnumBaseType { get; set; }
 
+    /// <summary>
+    /// For fixed-size array types (e.g., int[3]), the array size. Null for non-arrays.
+    /// </summary>
+    public int? ArraySize { get; set; }
+
+    /// <summary>
+    /// True if this is a fixed-size array type (e.g., int[3]).
+    /// </summary>
+    public bool IsFixedArray => ArraySize.HasValue && ArraySize.Value > 0;
+
     /// <summary>True if this is a boolean type (bool or BOOL).</summary>
     public bool IsBool => Name is "bool" or "BOOL";
 
@@ -22,6 +32,9 @@ public class TypeInfo
 
     /// <summary>True if this is a vector type (Vector2, Vector3, Vector4).</summary>
     public bool IsVector => Category is TypeCategory.Vector2 or TypeCategory.Vector3 or TypeCategory.Vector4;
+
+    /// <summary>True if this is a Vector3 type (by category or name).</summary>
+    public bool IsVector3 => Category == TypeCategory.Vector3 || Name == "Vector3";
 
     /// <summary>Gets the component names for vector types.</summary>
     public static readonly string[] VectorComponents = ["x", "y", "z", "w"];
@@ -80,8 +93,13 @@ public class TypeInfo
     /// </summary>
     public static readonly FrozenSet<string> ValidAttributes = new HashSet<string>
     {
-        "@this", "@notnull", "@in"
+        "@this", "@nullable", "@in"
     }.ToFrozenSet(StringComparer.Ordinal);
+
+    /// <summary>
+    /// Gets valid attributes as a comma-separated string for error messages.
+    /// </summary>
+    public static string ValidAttributesList => string.Join(", ", ValidAttributes);
 
     public static TypeInfo Parse(string typeString)
     {
@@ -154,6 +172,11 @@ public class TypeInfo
     /// Other handles like Prompt, ScrHandle, FireId, PopZone, Blip are just typed as number.
     /// </summary>
     public static bool IsClassHandle(string name) => ClassHandles.Contains(name);
+
+    /// <summary>
+    /// Normalizes handle type names for code generation (Object → Prop).
+    /// </summary>
+    public static string NormalizeHandleName(string name) => name == "Object" ? "Prop" : name;
 
     public override string ToString()
     {

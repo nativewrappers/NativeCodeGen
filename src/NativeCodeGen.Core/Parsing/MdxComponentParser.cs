@@ -55,16 +55,39 @@ public partial class MdxComponentParser
 
     /// <summary>
     /// Normalizes description text by cleaning up whitespace.
+    /// Preserves [enum:], [struct:] markers for downstream processing.
     /// </summary>
     public string NormalizeDescription(string content)
     {
         if (string.IsNullOrEmpty(content))
             return content;
 
+        // Remove markers that don't make sense in final output
+        var result = NativeAttributeRegex().Replace(content, "");
+        result = ExampleAttributeRegex().Replace(result, "");
+
         // Clean up double spaces
-        var result = Regex.Replace(content, @"\s{2,}", " ");
+        result = Regex.Replace(result, @"\s{2,}", " ");
 
         return result.Trim();
+    }
+
+    /// <summary>
+    /// Converts description text for code generation output.
+    /// Transforms [enum: Name] and [struct: Name] to {@link Name} for JSDoc.
+    /// </summary>
+    public static string FormatDescriptionForCodeGen(string? content)
+    {
+        if (string.IsNullOrEmpty(content))
+            return content ?? string.Empty;
+
+        // Convert [enum: Name] to {@link Name} for inline JSDoc references
+        var result = EnumAttributeRegex().Replace(content, "{@link $1}");
+
+        // Convert [struct: Name] to {@link Name}
+        result = StructAttributeRegex().Replace(result, "{@link $1}");
+
+        return result;
     }
 
     public List<EmbeddedEnumRef> ParseEmbeddedEnums(string content)

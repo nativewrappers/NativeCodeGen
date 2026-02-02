@@ -20,6 +20,14 @@ public class NativeDefinition
     /// Override the generated method name (from frontmatter methodName field).
     /// </summary>
     public string? MethodNameOverride { get; set; }
+    /// <summary>
+    /// Related natives for cross-referencing (generates @see tags in documentation).
+    /// </summary>
+    public List<string> RelatedNatives { get; set; } = new();
+    /// <summary>
+    /// Code examples from the Examples section (generates @example tags in documentation).
+    /// </summary>
+    public List<CodeExample> Examples { get; set; } = new();
 }
 
 public class NativeAttributes

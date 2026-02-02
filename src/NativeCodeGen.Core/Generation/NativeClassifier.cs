@@ -110,8 +110,7 @@ public class NativeClassifier
 
         if (firstParam.IsThis && firstParam.Type.Category == TypeCategory.Handle)
         {
-            var typeName = firstParam.Type.Name;
-            return typeName == "Object" ? "Prop" : typeName;
+            return TypeInfo.NormalizeHandleName(firstParam.Type.Name);
         }
 
         if (firstParam.Type.Category == TypeCategory.Handle)
@@ -138,7 +137,7 @@ public class NativeClassifier
             {
                 if (native.Namespace.Equals(expectedNs, StringComparison.OrdinalIgnoreCase))
                 {
-                    return handleType == "Object" ? "Prop" : handleType;
+                    return TypeInfo.NormalizeHandleName(handleType);
                 }
             }
 
@@ -175,7 +174,7 @@ public class NativeClassifier
         _ => "Entity"
     };
 
-    public static string NormalizeHandleType(string typeName) => typeName == "Object" ? "Prop" : typeName;
+    public static string NormalizeHandleType(string typeName) => TypeInfo.NormalizeHandleName(typeName);
 }
 
 public class ClassifiedNatives

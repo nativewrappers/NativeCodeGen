@@ -138,6 +138,53 @@ public class RawNativeBuilder
         _cb.AppendLine();
     }
 
+    /// <summary>
+    /// Emits a declaration-only function signature (for .d.ts files).
+    /// Only supported for TypeScript.
+    /// </summary>
+    public void EmitDeclaration(NativeDefinition native, BindingStyle binding, string? nameOverride = null)
+    {
+        if (_lang != Language.TypeScript) return;
+
+        var name = nameOverride ?? GetFunctionName(native.Name);
+        var inputParams = native.Parameters.Where(p => !p.IsPureOutput).ToList();
+        var outputParams = native.Parameters.Where(p => p.IsPureOutput).ToList();
+
+        // Emit doc comment
+        EmitDoc(native, inputParams, outputParams);
+
+        // Emit declaration
+        var paramList = BuildParamList(inputParams);
+        var returnType = BuildReturnType(native.ReturnType, outputParams);
+
+        switch (binding)
+        {
+            case BindingStyle.Export:
+                _cb.AppendLine($"export declare function {name}({paramList}): {returnType};");
+                break;
+            case BindingStyle.Global:
+                _cb.AppendLine($"declare function {name}({paramList}): {returnType};");
+                break;
+            case BindingStyle.Module:
+                // Module declarations would need different handling
+                _cb.AppendLine($"declare function {name}({paramList}): {returnType};");
+                break;
+        }
+        _cb.AppendLine();
+    }
+
+    /// <summary>
+    /// Emits imports suitable for .d.ts files (type-only imports).
+    /// </summary>
+    public void EmitDeclarationImports(bool singleFile = false)
+    {
+        if (_lang != Language.TypeScript) return;
+
+        var prefix = singleFile ? "./" : "../";
+        _cb.AppendLine($"import type {{ Vector3 }} from '{prefix}types/Vector3';");
+        _cb.AppendLine();
+    }
+
     private static string GetFunctionName(string nativeName)
     {
         var normalized = NameConverter.NormalizeNativeName(nativeName);
@@ -200,8 +247,12 @@ public class RawNativeBuilder
             var parts = inputParams.Select(p =>
             {
                 var type = MapParamType(p.Type);
-                var opt = p.HasDefaultValue ? "?" : "";
-                return $"{p.Name}{opt}: {type}";
+                if (p.HasDefaultValue)
+                {
+                    var defaultVal = MapDefaultValue(p.DefaultValue!, p.Type);
+                    return $"{p.Name}: {type} = {defaultVal}";
+                }
+                return $"{p.Name}: {type}";
             });
             return string.Join(", ", parts);
         }
@@ -209,6 +260,20 @@ public class RawNativeBuilder
         {
             return string.Join(", ", inputParams.Select(p => p.Name));
         }
+    }
+
+    private string MapDefaultValue(string value, TypeInfo type)
+    {
+        // Convert C-style boolean literals to TypeScript/Lua
+        if (type.IsBool)
+        {
+            return value.Equals("true", StringComparison.OrdinalIgnoreCase) ||
+                   value.Equals("TRUE", StringComparison.OrdinalIgnoreCase) ||
+                   value == "1"
+                ? "true"
+                : "false";
+        }
+        return value;
     }
 
     private string BuildReturnType(TypeInfo returnType, List<NativeParameter> outputParams)

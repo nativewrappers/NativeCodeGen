@@ -283,7 +283,7 @@ public class ProtobufSerializationTests
                                 {
                                     Name = "name",
                                     Type = "char*",
-                                    Flags = ParamFlags.NotNull
+                                    Flags = ParamFlags.Nullable
                                 }
                             }
                         }
@@ -299,7 +299,7 @@ public class ProtobufSerializationTests
 
         var native = deserialized.Namespaces[0].Natives[0];
         Assert.True(native.Parameters[0].Flags.HasFlag(ParamFlags.This));
-        Assert.True(native.Parameters[1].Flags.HasFlag(ParamFlags.NotNull));
+        Assert.True(native.Parameters[1].Flags.HasFlag(ParamFlags.Nullable));
     }
 
     [Fact]
@@ -480,19 +480,19 @@ public class ProtobufSerializationTests
                                     Type = "int*",
                                     Flags = ParamFlags.Output | ParamFlags.In
                                 },
-                                // Test combined flags: This | NotNull (value 6)
+                                // Test combined flags: This | Nullable (value 6)
                                 new ExportParameter
                                 {
-                                    Name = "thisNotNull",
+                                    Name = "thisNullable",
                                     Type = "Entity",
-                                    Flags = ParamFlags.This | ParamFlags.NotNull
+                                    Flags = ParamFlags.This | ParamFlags.Nullable
                                 },
                                 // Test all flags combined (value 15)
                                 new ExportParameter
                                 {
                                     Name = "allFlags",
                                     Type = "int*",
-                                    Flags = ParamFlags.Output | ParamFlags.This | ParamFlags.NotNull | ParamFlags.In
+                                    Flags = ParamFlags.Output | ParamFlags.This | ParamFlags.Nullable | ParamFlags.In
                                 }
                             }
                         }
@@ -514,9 +514,9 @@ public class ProtobufSerializationTests
         Assert.True(native.Parameters[0].Flags.HasFlag(ParamFlags.In));
         Assert.False(native.Parameters[0].Flags.HasFlag(ParamFlags.This));
 
-        Assert.Equal(ParamFlags.This | ParamFlags.NotNull, native.Parameters[1].Flags);
+        Assert.Equal(ParamFlags.This | ParamFlags.Nullable, native.Parameters[1].Flags);
 
-        Assert.Equal(ParamFlags.Output | ParamFlags.This | ParamFlags.NotNull | ParamFlags.In, native.Parameters[2].Flags);
+        Assert.Equal(ParamFlags.Output | ParamFlags.This | ParamFlags.Nullable | ParamFlags.In, native.Parameters[2].Flags);
         Assert.Equal((ParamFlags)15, native.Parameters[2].Flags);
     }
 

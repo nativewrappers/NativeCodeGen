@@ -6,7 +6,7 @@ public class NativeParameter
     public TypeInfo Type { get; set; } = new();
 
     /// <summary>
-    /// Parameter attribute flags (@this, @notnull, @in, computed output).
+    /// Parameter attribute flags (@this, @nullable, @in, computed output).
     /// </summary>
     public ParamFlags Flags { get; set; } = ParamFlags.None;
 
@@ -35,6 +35,6 @@ public class NativeParameter
 
     // Convenience accessors for common flag checks
     public bool IsThis => Flags.HasFlag(ParamFlags.This);
-    public bool IsNotNull => Flags.HasFlag(ParamFlags.NotNull);
+    public bool IsNullable => Flags.HasFlag(ParamFlags.Nullable);
     public bool IsIn => Flags.HasFlag(ParamFlags.In);
 }

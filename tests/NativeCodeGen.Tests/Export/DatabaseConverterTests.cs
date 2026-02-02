@@ -114,7 +114,7 @@ public class DatabaseConverterTests
                                 {
                                     Name = "name",
                                     Type = TypeInfo.Parse("char*"),
-                                    Flags = ParamFlags.NotNull
+                                    Flags = ParamFlags.Nullable
                                 },
                                 new NativeParameter
                                 {
@@ -134,7 +134,7 @@ public class DatabaseConverterTests
 
         var native = result.Namespaces[0].Natives[0];
         Assert.True(native.Parameters[0].Flags.HasFlag(ParamFlags.This));
-        Assert.True(native.Parameters[1].Flags.HasFlag(ParamFlags.NotNull));
+        Assert.True(native.Parameters[1].Flags.HasFlag(ParamFlags.Nullable));
         Assert.True(native.Parameters[2].Flags.HasFlag(ParamFlags.In));
     }
 

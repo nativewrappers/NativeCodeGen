@@ -34,6 +34,11 @@ public interface ILanguageEmitter
     /// </summary>
     string SelfReference { get; }
 
+    /// <summary>
+    /// Maps a default value from the native signature to the language's syntax.
+    /// </summary>
+    string MapDefaultValue(string value, TypeInfo type);
+
     // === Enum Generation ===
 
     /// <summary>
@@ -214,10 +219,12 @@ public enum MethodKind
     /// <summary>Getter property (parameterless method returning a value)</summary>
     Getter,
     /// <summary>Setter property (single-parameter void method)</summary>
-    Setter
+    Setter,
+    /// <summary>Chainable setter method that returns this/self for fluent API</summary>
+    ChainableSetter
 }
 
 /// <summary>
 /// Represents a method parameter for emission.
 /// </summary>
-public record MethodParameter(string Name, string Type, bool IsOptional = false);
+public record MethodParameter(string Name, string Type, string? DefaultValue = null);

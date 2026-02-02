@@ -104,6 +104,7 @@ public class SignatureParser
         var typeToken = Expect(TokenType.Identifier, "Expected type name");
         var typeName = typeToken.Value;
         var isPointer = false;
+        int? arraySize = null;
 
         if (Check(TokenType.Star))
         {
@@ -111,11 +112,21 @@ public class SignatureParser
             isPointer = true;
         }
 
+        // Check for fixed-size array syntax: type[N]
+        if (Check(TokenType.LBracket))
+        {
+            Advance();
+            var sizeToken = Expect(TokenType.Number, "Expected array size");
+            arraySize = int.Parse(sizeToken.Value);
+            Expect(TokenType.RBracket, "Expected ']'");
+        }
+
         return new TypeInfo
         {
             Name = typeName,
             IsPointer = isPointer,
-            Category = TypeInfo.CategorizeType(typeName, isPointer)
+            Category = TypeInfo.CategorizeType(typeName, isPointer),
+            ArraySize = arraySize
         };
     }
 
@@ -206,8 +217,8 @@ public class SignatureParser
                 case "@this":
                     flags |= ParamFlags.This;
                     break;
-                case "@notnull":
-                    flags |= ParamFlags.NotNull;
+                case "@nullable":
+                    flags |= ParamFlags.Nullable;
                     break;
                 case "@in":
                     flags |= ParamFlags.In;
@@ -218,7 +229,7 @@ public class SignatureParser
                         _filePath,
                         _baseLineNumber,
                         0,
-                        $"Unknown attribute '{attr}'. Valid attributes: @this, @notnull, @in");
+                        $"Unknown attribute '{attr}'. Valid attributes: {TypeInfo.ValidAttributesList}");
             }
         }
 
@@ -230,6 +241,7 @@ public class SignatureParser
         var typeToken = Expect(TokenType.Identifier, "Expected type name");
         var typeName = typeToken.Value;
         var isPointer = false;
+        int? arraySize = null;
 
         if (Check(TokenType.Star))
         {
@@ -237,11 +249,21 @@ public class SignatureParser
             isPointer = true;
         }
 
+        // Check for fixed-size array syntax: type[N]
+        if (Check(TokenType.LBracket))
+        {
+            Advance();
+            var sizeToken = Expect(TokenType.Number, "Expected array size");
+            arraySize = int.Parse(sizeToken.Value);
+            Expect(TokenType.RBracket, "Expected ']'");
+        }
+
         return new TypeInfo
         {
             Name = typeName,
             IsPointer = isPointer,
-            Category = TypeInfo.CategorizeType(typeName, isPointer)
+            Category = TypeInfo.CategorizeType(typeName, isPointer),
+            ArraySize = arraySize
         };
     }
 

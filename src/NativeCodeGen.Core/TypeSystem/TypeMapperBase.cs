@@ -13,7 +13,6 @@ public record LanguageConfig
     public required string NumberType { get; init; }
     public required string BooleanType { get; init; }
     public required string StringType { get; init; }
-    public required string NullableStringSuffix { get; init; }  // "| null" or "|nil"
     public required string Vector2Type { get; init; }
     public required string Vector3Type { get; init; }
     public required string Vector4Type { get; init; }
@@ -46,13 +45,18 @@ public record LanguageConfig
     // Whether the language supports getter properties (TypeScript does, Lua doesn't)
     public required bool SupportsGetters { get; init; }
 
+    // Whether to use inline default values in invoke args (Lua needs this, TS uses param defaults)
+    public required bool UseInlineDefaults { get; init; }
+
+    // Whether to use primitive type aliases (float, u8, etc.) for better documentation
+    public required bool UsePrimitiveAliases { get; init; }
+
     public static readonly LanguageConfig TypeScript = new()
     {
         VoidType = "void",
         NumberType = "number",
         BooleanType = "boolean",
         StringType = "string",
-        NullableStringSuffix = " | null",
         Vector2Type = "Vector2",
         Vector3Type = "Vector3",
         Vector4Type = "Vector4",
@@ -76,7 +80,9 @@ public record LanguageConfig
         HashWrapperAlias = "_h",
         UseFloatWrapper = true,
         UseHashWrapper = true,
-        SupportsGetters = true
+        SupportsGetters = true,
+        UseInlineDefaults = false,
+        UsePrimitiveAliases = true
     };
 
     public static readonly LanguageConfig Lua = new()
@@ -85,7 +91,6 @@ public record LanguageConfig
         NumberType = "number",
         BooleanType = "boolean",
         StringType = "string",
-        NullableStringSuffix = "|nil",
         Vector2Type = "vector2",
         Vector3Type = "vector3",
         Vector4Type = "vector4",
@@ -109,7 +114,9 @@ public record LanguageConfig
         HashWrapperAlias = "_h",
         UseFloatWrapper = false,
         UseHashWrapper = true,
-        SupportsGetters = false
+        SupportsGetters = false,
+        UseInlineDefaults = true,
+        UsePrimitiveAliases = false
     };
 }
 
@@ -125,13 +132,20 @@ public abstract class TypeMapperBase : ITypeMapper
         Config = config;
     }
 
-    public virtual string MapType(TypeInfo type, bool isNotNull = false, bool forReturn = false)
+    public virtual string MapType(TypeInfo type, bool isNullable = false, bool forReturn = false)
     {
+        // Handle fixed-size arrays: int[3] -> [number, number, number]
+        if (type.IsFixedArray)
+        {
+            var elementType = MapPrimitive(type.Name);
+            return FormatTuple(Enumerable.Repeat(elementType, type.ArraySize!.Value));
+        }
+
         if (type.IsPointer)
         {
             if (type.Name == "char" || type.Name == "string")
             {
-                return isNotNull ? Config.StringType : Config.StringType + Config.NullableStringSuffix;
+                return MapStringType(isNullable);
             }
             if (type.Category == TypeCategory.Struct)
             {
@@ -145,11 +159,11 @@ public abstract class TypeMapperBase : ITypeMapper
             TypeCategory.Void => Config.VoidType,
             TypeCategory.Primitive => MapPrimitive(type.Name),
             TypeCategory.Handle => Config.UseTypedHandles && TypeInfo.IsClassHandle(type.Name)
-                ? (type.Name == "Object" ? "Prop" : type.Name)
+                ? TypeInfo.NormalizeHandleName(type.Name)
                 : Config.NumberType,
             // Hash parameters accept string | number, but return type is always number
             TypeCategory.Hash => forReturn ? Config.NumberType : Config.HashType,
-            TypeCategory.String => isNotNull ? Config.StringType : Config.StringType + Config.NullableStringSuffix,
+            TypeCategory.String => MapStringType(isNullable),
             TypeCategory.Vector2 => Config.Vector2Type,
             TypeCategory.Vector3 => Config.Vector3Type,
             TypeCategory.Vector4 => Config.Vector4Type,
@@ -161,6 +175,20 @@ public abstract class TypeMapperBase : ITypeMapper
             _ => Config.UseTypedHandles ? type.Name : Config.AnyType
         };
     }
+
+    /// <summary>
+    /// Maps a string type, optionally nullable.
+    /// </summary>
+    protected string MapStringType(bool isNullable) =>
+        isNullable ? Config.StringType + Config.NullableSuffix : Config.StringType;
+
+    /// <summary>
+    /// Formats a list of types as a tuple. TypeScript uses [a, b], Lua uses a, b.
+    /// </summary>
+    protected string FormatTuple(IEnumerable<string> types) =>
+        Config == LanguageConfig.TypeScript
+            ? $"[{string.Join(", ", types)}]"
+            : string.Join(", ", types);
 
     /// <summary>
     /// Gets the effective category for code generation, treating enums as their base type.
@@ -182,12 +210,20 @@ public abstract class TypeMapperBase : ITypeMapper
 
     protected string MapPrimitive(string name) => name switch
     {
-        "int" or "uint" => Config.NumberType,
-        "float" or "double" => Config.NumberType,
+        "int" => Config.UsePrimitiveAliases ? "int" : Config.NumberType,
+        "uint" => Config.UsePrimitiveAliases ? "uint" : Config.NumberType,
+        "float" => Config.UsePrimitiveAliases ? "float" : Config.NumberType,
+        "double" => Config.UsePrimitiveAliases ? "float" : Config.NumberType,
         "BOOL" or "bool" => Config.BooleanType,
-        "u8" or "u16" or "u32" or "u64" => Config.NumberType,
-        "i8" or "i16" or "i32" or "i64" => Config.NumberType,
-        "f32" or "f64" => Config.NumberType,
+        "u8" => Config.UsePrimitiveAliases ? "u8" : Config.NumberType,
+        "u16" => Config.UsePrimitiveAliases ? "u16" : Config.NumberType,
+        "u32" => Config.UsePrimitiveAliases ? "u32" : Config.NumberType,
+        "u64" => Config.UsePrimitiveAliases ? "u64" : Config.NumberType,
+        "i8" => Config.UsePrimitiveAliases ? "i8" : Config.NumberType,
+        "i16" => Config.UsePrimitiveAliases ? "i16" : Config.NumberType,
+        "i32" => Config.UsePrimitiveAliases ? "i32" : Config.NumberType,
+        "i64" => Config.UsePrimitiveAliases ? "i64" : Config.NumberType,
+        "f32" or "f64" => Config.UsePrimitiveAliases ? "float" : Config.NumberType,
         "Hash" => Config.NumberType,
         _ => Config.NumberType
     };
@@ -231,7 +267,7 @@ public abstract class TypeMapperBase : ITypeMapper
 
     public virtual string GetPointerPlaceholder(TypeInfo type)
     {
-        if (type.Category == TypeCategory.Vector3 || type.Name == "Vector3")
+        if (type.IsVector3)
             return $"{Config.PointerVectorAlias}()";
 
         return type.IsFloat ? $"{Config.PointerFloatAlias}()" : $"{Config.PointerIntAlias}()";
@@ -244,7 +280,7 @@ public abstract class TypeMapperBase : ITypeMapper
         var pvii = Config.PointerIntInitAlias;
         var useFloat = Config.UseFloatWrapper;
 
-        if (type.Category == TypeCategory.Vector3 || type.Name == "Vector3")
+        if (type.IsVector3)
         {
             // Vector3 expands to 3 floats: x, y, z - wrapped with f() for float safety if needed
             return useFloat
@@ -280,15 +316,13 @@ public abstract class TypeMapperBase : ITypeMapper
 
     public virtual string GetOutputParamType(TypeInfo type)
     {
-        if (type.Category == TypeCategory.Vector3 || type.Name == "Vector3")
-        {
+        if (type.IsVector3)
             return Config.Vector3Type;
-        }
 
         if (type.Category == TypeCategory.Handle)
         {
             return Config.UseTypedHandles
-                ? $"{(type.Name == "Object" ? "Prop" : type.Name)}{Config.NullableSuffix}"
+                ? $"{TypeInfo.NormalizeHandleName(type.Name)}{Config.NullableSuffix}"
                 : Config.NumberType;
         }
 
@@ -336,10 +370,7 @@ public abstract class TypeMapperBase : ITypeMapper
             tupleTypes.Add(GetOutputParamType(outputType));
         }
 
-        // TypeScript uses [a, b], Lua uses comma-separated
-        return Config == LanguageConfig.TypeScript
-            ? $"[{string.Join(", ", tupleTypes)}]"
-            : string.Join(", ", tupleTypes);
+        return FormatTuple(tupleTypes);
     }
 
     public virtual string GetInvokeCombinedReturnType(TypeInfo returnType, IEnumerable<TypeInfo> outputParamTypes)
@@ -360,14 +391,10 @@ public abstract class TypeMapperBase : ITypeMapper
 
         foreach (var outputType in outputTypes)
         {
-            if (outputType.Category == TypeCategory.Vector3 || outputType.Name == "Vector3")
-            {
+            if (outputType.IsVector3)
                 invokeTypes.Add(Config == LanguageConfig.TypeScript ? "number[]" : Config.Vector3Type);
-            }
             else
-            {
                 invokeTypes.Add(Config.NumberType);
-            }
         }
 
         if (invokeTypes.Count == 1)
@@ -375,8 +402,6 @@ public abstract class TypeMapperBase : ITypeMapper
             return invokeTypes[0];
         }
 
-        return Config == LanguageConfig.TypeScript
-            ? $"[{string.Join(", ", invokeTypes)}]"
-            : string.Join(", ", invokeTypes);
+        return FormatTuple(invokeTypes);
     }
 }

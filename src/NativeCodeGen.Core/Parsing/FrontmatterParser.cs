@@ -13,6 +13,11 @@ public class Frontmatter
     /// Use snake_case in YAML: method_name
     /// </summary>
     public string? MethodName { get; set; }
+    /// <summary>
+    /// Related natives for cross-referencing (generates @see tags).
+    /// Use snake_case in YAML: related_natives
+    /// </summary>
+    public List<string> RelatedNatives { get; set; } = new();
 }
 
 public class FrontmatterParser

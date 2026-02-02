@@ -20,9 +20,9 @@ public enum ParamFlags
     /// </summary>
     This = 2,
     /// <summary>
-    /// @notnull - string parameter cannot be null.
+    /// @nullable - string parameter can be null (default is non-null).
     /// </summary>
-    NotNull = 4,
+    Nullable = 4,
     /// <summary>
     /// @in - input+output pointer (uses initialized value, not pure output).
     /// When set with Output, the parameter appears in method signature.

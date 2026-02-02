@@ -16,6 +16,36 @@ public class TypeScriptEmitter : ILanguageEmitter
     public string FileExtension => ".ts";
     public string SelfReference => "this";
 
+    public string MapDefaultValue(string value, TypeInfo type)
+    {
+        // Convert C-style boolean literals to TypeScript
+        if (type.IsBool)
+        {
+            return value.Equals("true", StringComparison.OrdinalIgnoreCase) ||
+                   value.Equals("TRUE", StringComparison.OrdinalIgnoreCase) ||
+                   value == "1"
+                ? "true"
+                : "false";
+        }
+
+        // Numeric values pass through
+        if (type.Category == TypeCategory.Primitive && (type.IsFloat || type.Name == "int"))
+        {
+            return value;
+        }
+
+        // String values need quotes if not already quoted
+        if (type.Category == TypeCategory.String)
+        {
+            if (value.StartsWith("\"") && value.EndsWith("\""))
+                return value;
+            return $"\"{value}\"";
+        }
+
+        // Default: pass through as-is
+        return value;
+    }
+
     public DocBuilder CreateDocBuilder() => new JsDocBuilder();
 
     // === Enum Generation ===
@@ -100,7 +130,7 @@ public class TypeScriptEmitter : ILanguageEmitter
         import { Color } from '../types/Color';
         """;
 
-    private const string NativeAliasImport = "import { inv, rai, raf, ras, rav, pvi, pvf, pvv, pvii, pvfi, _h, f } from '../types/NativeAliases';";
+    private const string NativeAliasImport = "import { inv, rai, raf, ras, rav, pvi, pvf, pvv, pvii, pvfi, _h, f, int, uint, float, Hash, u8, u16, u32, u64, i8, i16, i32, i64 } from '../types/NativeAliases';";
 
     private static void EmitVectorColorImports(CodeBuilder cb) =>
         cb.AppendLine(VectorColorImports);
@@ -286,9 +316,9 @@ public class TypeScriptEmitter : ILanguageEmitter
     {
         cb.AppendLine($"static fromNetworkId(netId: number): {className} | null {{");
         cb.Indent();
-        // NETWORK_DOES_ENTITY_EXIST_WITH_NETWORK_ID = 0x38CE16C96BD11F2C
+        // NETWORK_DOES_ENTITY_EXIST_WITH_NETWORK_ID = 0x18A47D074708FD68
         // NETWORK_GET_ENTITY_FROM_NETWORK_ID = 0xCE4E5D9B0A4FF560
-        cb.AppendLine("if (!inv<number>('0x38CE16C96BD11F2C', netId, rai())) return null;");
+        cb.AppendLine("if (!inv<number>('0x18A47D074708FD68', netId, rai())) return null;");
         cb.AppendLine($"return {className}.fromHandle(inv<number>('0xCE4E5D9B0A4FF560', netId, rai()));");
         cb.Dedent();
         cb.AppendLine("}");
@@ -372,6 +402,16 @@ public class TypeScriptEmitter : ILanguageEmitter
             return;
         }
 
+        if (kind == MethodKind.ChainableSetter)
+        {
+            // Emit chainable method that returns this
+            var chainableParams = string.Join(", ", parameters.Select(p =>
+                p.DefaultValue != null ? $"{p.Name}: {p.Type} = {p.DefaultValue}" : $"{p.Name}: {p.Type}"));
+            cb.AppendLine($"{methodName}({chainableParams}): this {{");
+            cb.Indent();
+            return;
+        }
+
         var paramString = string.Join(", ", parameters.Select(p =>
         {
             // Rest parameters (starting with ...) need array type - use any[] since variadic can accept multiple types
@@ -379,7 +419,12 @@ public class TypeScriptEmitter : ILanguageEmitter
             {
                 return $"{p.Name}: any[]";
             }
-            return $"{p.Name}{(p.IsOptional ? "?" : "")}: {p.Type}";
+            // Use default value syntax instead of optional marker
+            if (p.DefaultValue != null)
+            {
+                return $"{p.Name}: {p.Type} = {p.DefaultValue}";
+            }
+            return $"{p.Name}: {p.Type}";
         }));
 
         var staticKeyword = kind == MethodKind.Static ? "static " : "";

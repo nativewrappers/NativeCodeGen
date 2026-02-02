@@ -11,6 +11,8 @@ public abstract class DocBuilder
     protected readonly List<string> DescriptionLines = new();
     protected readonly List<DocParam> Params = new();
     protected readonly List<DocThrows> Throws = new();
+    protected readonly List<string> SeeAlso = new();
+    protected readonly List<DocExample> Examples = new();
     protected DocReturn? Return;
 
     public DocBuilder AddDescription(string? description)
@@ -49,7 +51,53 @@ public abstract class DocBuilder
         return this;
     }
 
-    public bool IsEmpty => DescriptionLines.Count == 0 && Params.Count == 0 && Throws.Count == 0 && Return == null;
+    public DocBuilder AddSee(string reference)
+    {
+        SeeAlso.Add(reference);
+        return this;
+    }
+
+    public DocBuilder AddExample(string code, string language = "typescript")
+    {
+        Examples.Add(new DocExample(code, language));
+        return this;
+    }
+
+    /// <summary>
+    /// Returns the preferred languages for examples in priority order.
+    /// Override in language-specific builders.
+    /// </summary>
+    protected virtual string[] GetPreferredLanguages() => [];
+
+    /// <summary>
+    /// Filters examples to prefer the target language.
+    /// Returns examples matching the first preferred language that has any,
+    /// or all examples if no preferred languages match.
+    /// </summary>
+    protected IEnumerable<DocExample> GetFilteredExamples()
+    {
+        if (Examples.Count == 0)
+            return Examples;
+
+        var preferred = GetPreferredLanguages();
+        if (preferred.Length == 0)
+            return Examples;
+
+        // Try each preferred language in order
+        foreach (var lang in preferred)
+        {
+            var matching = Examples.Where(e =>
+                e.Language.Equals(lang, StringComparison.OrdinalIgnoreCase)).ToList();
+
+            if (matching.Count > 0)
+                return matching;
+        }
+
+        // No preferred match - return all examples
+        return Examples;
+    }
+
+    public bool IsEmpty => DescriptionLines.Count == 0 && Params.Count == 0 && Throws.Count == 0 && Return == null && SeeAlso.Count == 0 && Examples.Count == 0;
 
     /// <summary>
     /// Renders the documentation to the CodeBuilder.
@@ -89,6 +137,8 @@ public class JsDocBuilder : DocBuilder
         return text.Replace("*/", "*\\/");
     }
 
+    protected override string[] GetPreferredLanguages() => ["typescript", "ts", "javascript", "js"];
+
     public override void Render(CodeBuilder cb)
     {
         if (IsEmpty) return;
@@ -121,6 +171,22 @@ public class JsDocBuilder : DocBuilder
             cb.AppendLine($" * @returns{desc}");
         }
 
+        foreach (var see in SeeAlso)
+        {
+            cb.AppendLine($" * @see {{{see}}}");
+        }
+
+        foreach (var example in GetFilteredExamples())
+        {
+            cb.AppendLine(" * @example");
+            cb.AppendLine($" * ```{example.Language}");
+            foreach (var line in example.Code.Split('\n'))
+            {
+                cb.AppendLine($" * {EscapeJsDoc(line)}");
+            }
+            cb.AppendLine(" * ```");
+        }
+
         cb.AppendLine(" */");
     }
 }
@@ -130,6 +196,8 @@ public class JsDocBuilder : DocBuilder
 /// </summary>
 public class LuaDocBuilder : DocBuilder
 {
+    protected override string[] GetPreferredLanguages() => ["lua"];
+
     public override void Render(CodeBuilder cb)
     {
         foreach (var line in DescriptionLines)
@@ -147,6 +215,23 @@ public class LuaDocBuilder : DocBuilder
         {
             var desc = string.IsNullOrEmpty(Return.Description) ? "" : $" {Return.Description}";
             cb.AppendLine($"---@return {Return.Type}{desc}");
+        }
+
+        foreach (var see in SeeAlso)
+        {
+            cb.AppendLine($"---@see {see}");
+        }
+
+        foreach (var example in GetFilteredExamples())
+        {
+            cb.AppendLine("---");
+            cb.AppendLine("---Example:");
+            cb.AppendLine("---```" + example.Language);
+            foreach (var line in example.Code.Split('\n'))
+            {
+                cb.AppendLine($"---{line}");
+            }
+            cb.AppendLine("---```");
         }
     }
 }
@@ -183,3 +268,4 @@ public class XmlDocBuilder : DocBuilder
 public record DocParam(string Name, string Type, string Description);
 public record DocReturn(string Type, string? Description);
 public record DocThrows(string Type, string Description);
+public record DocExample(string Code, string Language);

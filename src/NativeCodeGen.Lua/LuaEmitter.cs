@@ -16,6 +16,36 @@ public class LuaEmitter : ILanguageEmitter
     public string FileExtension => ".lua";
     public string SelfReference => "self";
 
+    public string MapDefaultValue(string value, TypeInfo type)
+    {
+        // Convert C-style boolean literals to Lua
+        if (type.IsBool)
+        {
+            return value.Equals("true", StringComparison.OrdinalIgnoreCase) ||
+                   value.Equals("TRUE", StringComparison.OrdinalIgnoreCase) ||
+                   value == "1"
+                ? "true"
+                : "false";
+        }
+
+        // Numeric values pass through
+        if (type.Category == TypeCategory.Primitive && (type.IsFloat || type.Name == "int"))
+        {
+            return value;
+        }
+
+        // String values need quotes if not already quoted
+        if (type.Category == TypeCategory.String)
+        {
+            if (value.StartsWith("\"") && value.EndsWith("\""))
+                return value;
+            return $"\"{value}\"";
+        }
+
+        // Default: pass through as-is
+        return value;
+    }
+
     public DocBuilder CreateDocBuilder() => new LuaDocBuilder();
 
     // === Enum Generation ===
@@ -281,7 +311,7 @@ public class LuaEmitter : ILanguageEmitter
     {
         var paramNames = string.Join(", ", parameters.Select(p => p.Name));
         // Lua doesn't have getters/setters, so treat them as Instance methods
-        var separator = (kind == MethodKind.Instance || kind == MethodKind.Getter || kind == MethodKind.Setter) ? ":" : ".";
+        var separator = (kind == MethodKind.Instance || kind == MethodKind.Getter || kind == MethodKind.Setter || kind == MethodKind.ChainableSetter) ? ":" : ".";
         cb.AppendLine($"function {className}{separator}{methodName}({paramNames})");
         cb.Indent();
     }

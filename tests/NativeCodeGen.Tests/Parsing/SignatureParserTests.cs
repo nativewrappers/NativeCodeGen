@@ -109,22 +109,22 @@ public class SignatureParserTests
     }
 
     [Fact]
-    public void Parse_NotnullAttribute_Succeeds()
+    public void Parse_NullableAttribute_Succeeds()
     {
-        var (_, _, parameters) = Parse("void TEST(@notnull char* name);");
+        var (_, _, parameters) = Parse("void TEST(@nullable char* name);");
 
         Assert.Single(parameters);
-        Assert.True(parameters[0].IsNotNull);
+        Assert.True(parameters[0].IsNullable);
     }
 
     [Fact]
     public void Parse_CombinedAttributes_Succeeds()
     {
-        var (_, _, parameters) = Parse("void TEST(@this Entity entity, @notnull char* name, @in int* outValue);");
+        var (_, _, parameters) = Parse("void TEST(@this Entity entity, @nullable char* name, @in int* outValue);");
 
         Assert.Equal(3, parameters.Count);
         Assert.True(parameters[0].IsThis);
-        Assert.True(parameters[1].IsNotNull);
+        Assert.True(parameters[1].IsNullable);
         Assert.True(parameters[2].IsIn);
     }
 
@@ -152,8 +152,8 @@ public class SignatureParserTests
     [Fact]
     public void Parse_MissingAtSign_NotAttribute()
     {
-        // 'notnull' without @ is treated as a type name, not attribute
-        var ex = Assert.Throws<ParseException>(() => Parse("void TEST(notnull char* name);"));
+        // 'nullable' without @ is treated as a type name, not attribute
+        var ex = Assert.Throws<ParseException>(() => Parse("void TEST(nullable char* name);"));
 
         // Should fail because it expects parameter name after type
         Assert.Contains("Expected", ex.Message);
