@@ -12,7 +12,7 @@ public static class ArgumentBuilder
     /// Gets the argument expression for a parameter, handling all parameter types:
     /// - Regular inputs: pass their value directly
     /// - Vector3: expand to x, y, z
-    /// - Structs: pass .buffer
+    /// - Structs: pass .view
     /// - Handles: pass .handle (unless rawMode)
     /// - Output-only pointers: pass pointer placeholder
     /// - Input+output pointers (@in): pass initialized pointer
@@ -53,10 +53,10 @@ public static class ArgumentBuilder
             return $"{param.Name}.r, {param.Name}.g, {param.Name}.b, {param.Name}.a";
         }
 
-        // Struct buffer
+        // Struct view (DataView for native invoke)
         if (param.Type.Category == TypeCategory.Struct)
         {
-            return $"{param.Name}.buffer";
+            return $"{param.Name}.view";
         }
 
         // Handle types - only class handles have a .handle property
