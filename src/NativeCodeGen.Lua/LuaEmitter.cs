@@ -1,6 +1,7 @@
 using NativeCodeGen.Core.Generation;
 using NativeCodeGen.Core.Models;
 using NativeCodeGen.Core.TypeSystem;
+using static NativeCodeGen.Core.Generation.SpecialNatives;
 
 namespace NativeCodeGen.Lua;
 
@@ -16,35 +17,8 @@ public class LuaEmitter : ILanguageEmitter
     public string FileExtension => ".lua";
     public string SelfReference => "self";
 
-    public string MapDefaultValue(string value, TypeInfo type)
-    {
-        // Convert C-style boolean literals to Lua
-        if (type.IsBool)
-        {
-            return value.Equals("true", StringComparison.OrdinalIgnoreCase) ||
-                   value.Equals("TRUE", StringComparison.OrdinalIgnoreCase) ||
-                   value == "1"
-                ? "true"
-                : "false";
-        }
-
-        // Numeric values pass through
-        if (type.Category == TypeCategory.Primitive && (type.IsFloat || type.Name == "int"))
-        {
-            return value;
-        }
-
-        // String values need quotes if not already quoted
-        if (type.Category == TypeCategory.String)
-        {
-            if (value.StartsWith("\"") && value.EndsWith("\""))
-                return value;
-            return $"\"{value}\"";
-        }
-
-        // Default: pass through as-is
-        return value;
-    }
+    public string MapDefaultValue(string value, TypeInfo type) =>
+        Core.Utilities.DefaultValueMapper.MapDefaultValue(value, type);
 
     public DocBuilder CreateDocBuilder() => new LuaDocBuilder();
 
@@ -143,74 +117,58 @@ public class LuaEmitter : ILanguageEmitter
     public void EmitClassEnd(CodeBuilder cb, string className, ClassKind kind)
     {
         // Add special accessors before returning the class
-        if (kind == ClassKind.Handle && className == "Ped")
+        if (kind == ClassKind.Handle)
         {
-            cb.AppendLine();
-            cb.AppendLine("---@return PedTask");
-            cb.AppendLine("function Ped:getTask()");
-            cb.Indent();
-            cb.AppendLine("if not self._task then");
-            cb.Indent();
-            cb.AppendLine("self._task = PedTask.new(self)");
-            cb.Dedent();
-            cb.AppendLine("end");
-            cb.AppendLine("return self._task");
-            cb.Dedent();
-            cb.AppendLine("end");
-            cb.AppendLine();
-            cb.AppendLine("---@return Weapon");
-            cb.AppendLine("function Ped:getWeapon()");
-            cb.Indent();
-            cb.AppendLine("if not self._weapon then");
-            cb.Indent();
-            cb.AppendLine("self._weapon = Weapon.new(self)");
-            cb.Dedent();
-            cb.AppendLine("end");
-            cb.AppendLine("return self._weapon");
-            cb.Dedent();
-            cb.AppendLine("end");
-        }
-        else if (kind == ClassKind.Handle && className == "Vehicle")
-        {
-            cb.AppendLine();
-            cb.AppendLine("---@return VehicleTask");
-            cb.AppendLine("function Vehicle:getTask()");
-            cb.Indent();
-            cb.AppendLine("if not self._task then");
-            cb.Indent();
-            cb.AppendLine("self._task = VehicleTask.new(self)");
-            cb.Dedent();
-            cb.AppendLine("end");
-            cb.AppendLine("return self._task");
-            cb.Dedent();
-            cb.AppendLine("end");
-        }
-        else if (kind == ClassKind.Handle && className == "Player")
-        {
-            cb.AppendLine();
-            cb.AppendLine("---Gets the player's server ID. In multiplayer, this is the player's unique server-side identifier.");
-            cb.AppendLine("---@return number");
-            cb.AppendLine("function Player:getServerId()");
-            cb.Indent();
-            // GET_PLAYER_SERVER_ID = 0x4D97BCC7 (CFX native)
-            cb.AppendLine("return inv(0x4D97BCC7, self.handle, rai())");
-            cb.Dedent();
-            cb.AppendLine("end");
-        }
-        else if (kind == ClassKind.Handle && className == "Entity")
-        {
-            cb.AppendLine();
-            cb.AppendLine("---Gets the network ID of this entity for network synchronization.");
-            cb.AppendLine("---@return number");
-            cb.AppendLine("function Entity:getNetworkId()");
-            cb.Indent();
-            // NETWORK_GET_NETWORK_ID_FROM_ENTITY = 0xF260AF6F43953316
-            cb.AppendLine("return inv(0xF260AF6F43953316, self.handle, rai())");
-            cb.Dedent();
-            cb.AppendLine("end");
+            switch (className)
+            {
+                case "Ped":
+                    foreach (var accessor in SpecialAccessors.PedAccessors)
+                        EmitLazyAccessor(cb, className, accessor);
+                    break;
+                case "Vehicle":
+                    foreach (var accessor in SpecialAccessors.VehicleAccessors)
+                        EmitLazyAccessor(cb, className, accessor);
+                    break;
+                case "Player":
+                    EmitNativeAccessor(cb, className, SpecialAccessors.PlayerServerId);
+                    break;
+                case "Entity":
+                    EmitNativeAccessor(cb, className, SpecialAccessors.EntityNetworkId);
+                    break;
+            }
         }
 
         cb.AppendLine($"return {className}");
+    }
+
+    public void EmitLazyAccessor(CodeBuilder cb, string className, LazyAccessor accessor)
+    {
+        var methodName = "get" + char.ToUpper(accessor.FieldName[1]) + accessor.FieldName[2..];
+        cb.AppendLine();
+        cb.AppendLine($"---@return {accessor.ReturnType}");
+        cb.AppendLine($"function {className}:{methodName}()");
+        cb.Indent();
+        cb.AppendLine($"if not self.{accessor.FieldName} then");
+        cb.Indent();
+        cb.AppendLine($"self.{accessor.FieldName} = {accessor.InitExpression}.new(self)");
+        cb.Dedent();
+        cb.AppendLine("end");
+        cb.AppendLine($"return self.{accessor.FieldName}");
+        cb.Dedent();
+        cb.AppendLine("end");
+    }
+
+    public void EmitNativeAccessor(CodeBuilder cb, string className, NativeAccessor accessor)
+    {
+        var methodName = "get" + accessor.Name;
+        cb.AppendLine();
+        cb.AppendLine($"---{accessor.Description}");
+        cb.AppendLine($"---@return {accessor.ReturnType}");
+        cb.AppendLine($"function {className}:{methodName}()");
+        cb.Indent();
+        cb.AppendLine($"return inv({accessor.Hash}, self.handle, rai())");
+        cb.Dedent();
+        cb.AppendLine("end");
     }
 
     public void EmitHandleConstructor(CodeBuilder cb, string className, string? baseClass)
@@ -254,10 +212,8 @@ public class LuaEmitter : ILanguageEmitter
         cb.AppendLine($"---@return {className}|nil");
         cb.AppendLine($"function {className}.fromNetworkId(netId)");
         cb.Indent();
-        // NETWORK_DOES_ENTITY_EXIST_WITH_NETWORK_ID = 0x38CE16C96BD11F2C
-        // NETWORK_GET_ENTITY_FROM_NETWORK_ID = 0x5B912C3F653822E6
-        cb.AppendLine("if not inv(0x38CE16C96BD11F2C, netId, rai()) then return nil end");
-        cb.AppendLine($"return {className}.fromHandle(inv(0x5B912C3F653822E6, netId, rai()))");
+        cb.AppendLine($"if not inv({NetworkDoesEntityExistWithNetworkId}, netId, rai()) then return nil end");
+        cb.AppendLine($"return {className}.fromHandle(inv({NetworkGetEntityFromNetworkId}, netId, rai()))");
         cb.Dedent();
         cb.AppendLine("end");
         cb.AppendLine();
@@ -465,26 +421,17 @@ public class LuaEmitter : ILanguageEmitter
 
     public void EmitPrimitiveGetter(CodeBuilder cb, string structName, string fieldName, int offset, TypeInfo type, string? comment)
     {
-        var (luaType, getter, _) = _typeMapper.GetDataViewAccessor(type);
-        var needsEndian = StructLayoutCalculator.NeedsEndianArgument(type);
-        var endianArg = needsEndian ? ", true" : "";
+        var info = _typeMapper.GetDataViewAccessorInfo(type);
 
         new LuaDocBuilder()
-            .AddReturn(luaType)
+            .AddReturn(info.LanguageType)
             .Render(cb);
 
         cb.AppendLine($"function {structName}:get{fieldName}()");
         cb.Indent();
-
-        if (type.IsBool)
-        {
-            cb.AppendLine($"return self._view:{getter}(self._offset + {offset}{endianArg}) ~= 0");
-        }
-        else
-        {
-            cb.AppendLine($"return self._view:{getter}(self._offset + {offset}{endianArg})");
-        }
-
+        cb.AppendLine(info.IsBool
+            ? $"return self._view:{info.GetMethod}(self._offset + {offset}{info.EndianArg}) ~= 0"
+            : $"return self._view:{info.GetMethod}(self._offset + {offset}{info.EndianArg})");
         cb.Dedent();
         cb.AppendLine("end");
         cb.AppendLine();
@@ -492,26 +439,17 @@ public class LuaEmitter : ILanguageEmitter
 
     public void EmitPrimitiveSetter(CodeBuilder cb, string structName, string fieldName, int offset, TypeInfo type)
     {
-        var (luaType, _, setter) = _typeMapper.GetDataViewAccessor(type);
-        var needsEndian = StructLayoutCalculator.NeedsEndianArgument(type);
-        var endianArg = needsEndian ? ", true" : "";
+        var info = _typeMapper.GetDataViewAccessorInfo(type);
 
         new LuaDocBuilder()
-            .AddParam("value", luaType)
+            .AddParam("value", info.LanguageType)
             .Render(cb);
 
         cb.AppendLine($"function {structName}:set{fieldName}(value)");
         cb.Indent();
-
-        if (type.IsBool)
-        {
-            cb.AppendLine($"self._view:{setter}(self._offset + {offset}, value and 1 or 0{endianArg})");
-        }
-        else
-        {
-            cb.AppendLine($"self._view:{setter}(self._offset + {offset}, value{endianArg})");
-        }
-
+        cb.AppendLine(info.IsBool
+            ? $"self._view:{info.SetMethod}(self._offset + {offset}, value and 1 or 0{info.EndianArg})"
+            : $"self._view:{info.SetMethod}(self._offset + {offset}, value{info.EndianArg})");
         cb.Dedent();
         cb.AppendLine("end");
         cb.AppendLine();
@@ -519,28 +457,19 @@ public class LuaEmitter : ILanguageEmitter
 
     public void EmitArrayGetter(CodeBuilder cb, string structName, string fieldName, int offset, int elementSize, int arraySize, TypeInfo type, string? comment)
     {
-        var (luaType, getter, _) = _typeMapper.GetDataViewAccessor(type);
-        var needsEndian = StructLayoutCalculator.NeedsEndianArgument(type);
-        var endianArg = needsEndian ? ", true" : "";
+        var info = _typeMapper.GetDataViewAccessorInfo(type);
 
         new LuaDocBuilder()
             .AddParam("index", "number", $"Array index (0-{arraySize - 1})")
-            .AddReturn(luaType)
+            .AddReturn(info.LanguageType)
             .Render(cb);
 
         cb.AppendLine($"function {structName}:get{fieldName}(index)");
         cb.Indent();
         cb.AppendLine($"if index < 0 or index >= {arraySize} then error('Index out of bounds') end");
-
-        if (type.IsBool)
-        {
-            cb.AppendLine($"return self._view:{getter}(self._offset + {offset} + index * {elementSize}{endianArg}) ~= 0");
-        }
-        else
-        {
-            cb.AppendLine($"return self._view:{getter}(self._offset + {offset} + index * {elementSize}{endianArg})");
-        }
-
+        cb.AppendLine(info.IsBool
+            ? $"return self._view:{info.GetMethod}(self._offset + {offset} + index * {elementSize}{info.EndianArg}) ~= 0"
+            : $"return self._view:{info.GetMethod}(self._offset + {offset} + index * {elementSize}{info.EndianArg})");
         cb.Dedent();
         cb.AppendLine("end");
         cb.AppendLine();
@@ -548,28 +477,19 @@ public class LuaEmitter : ILanguageEmitter
 
     public void EmitArraySetter(CodeBuilder cb, string structName, string fieldName, int offset, int elementSize, int arraySize, TypeInfo type)
     {
-        var (luaType, _, setter) = _typeMapper.GetDataViewAccessor(type);
-        var needsEndian = StructLayoutCalculator.NeedsEndianArgument(type);
-        var endianArg = needsEndian ? ", true" : "";
+        var info = _typeMapper.GetDataViewAccessorInfo(type);
 
         new LuaDocBuilder()
             .AddParam("index", "number", $"Array index (0-{arraySize - 1})")
-            .AddParam("value", luaType)
+            .AddParam("value", info.LanguageType)
             .Render(cb);
 
         cb.AppendLine($"function {structName}:set{fieldName}(index, value)");
         cb.Indent();
         cb.AppendLine($"if index < 0 or index >= {arraySize} then error('Index out of bounds') end");
-
-        if (type.IsBool)
-        {
-            cb.AppendLine($"self._view:{setter}(self._offset + {offset} + index * {elementSize}, value and 1 or 0{endianArg})");
-        }
-        else
-        {
-            cb.AppendLine($"self._view:{setter}(self._offset + {offset} + index * {elementSize}, value{endianArg})");
-        }
-
+        cb.AppendLine(info.IsBool
+            ? $"self._view:{info.SetMethod}(self._offset + {offset} + index * {elementSize}, value and 1 or 0{info.EndianArg})"
+            : $"self._view:{info.SetMethod}(self._offset + {offset} + index * {elementSize}, value{info.EndianArg})");
         cb.Dedent();
         cb.AppendLine("end");
         cb.AppendLine();

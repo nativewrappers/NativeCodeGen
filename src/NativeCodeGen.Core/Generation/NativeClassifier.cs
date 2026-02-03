@@ -1,5 +1,6 @@
 using System.Collections.Frozen;
 using NativeCodeGen.Core.Models;
+using NativeCodeGen.Core.Utilities;
 using NativeCodeGen.Core.Parsing;
 
 namespace NativeCodeGen.Core.Generation;
@@ -117,7 +118,7 @@ public class NativeClassifier
         {
             var handleType = firstParam.Type.Name;
 
-            if (native.Namespace.Equals("TASK", StringComparison.OrdinalIgnoreCase))
+            if (native.Namespace.EqualsIgnoreCase("TASK"))
             {
                 return handleType switch
                 {
@@ -128,14 +129,14 @@ public class NativeClassifier
                 };
             }
 
-            if (native.Namespace.Equals("WEAPON", StringComparison.OrdinalIgnoreCase) && handleType == "Ped")
+            if (native.Namespace.EqualsIgnoreCase("WEAPON") && handleType == "Ped")
             {
                 return "Weapon";
             }
 
             if (TypeToNamespace.TryGetValue(handleType, out var expectedNs))
             {
-                if (native.Namespace.Equals(expectedNs, StringComparison.OrdinalIgnoreCase))
+                if (native.Namespace.EqualsIgnoreCase(expectedNs))
                 {
                     return TypeInfo.NormalizeHandleName(handleType);
                 }
@@ -147,7 +148,7 @@ public class NativeClassifier
             }
         }
 
-        if (native.Namespace.Equals("STREAMING", StringComparison.OrdinalIgnoreCase) &&
+        if (native.Namespace.EqualsIgnoreCase("STREAMING") &&
             firstParam.Type.Category == TypeCategory.Hash)
         {
             var upperName = native.Name.ToUpperInvariant();

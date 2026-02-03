@@ -72,7 +72,7 @@ public class RawNativeBuilder
         cb.AppendLine($"const {cfg.PointerIntInitAlias} = Citizen.pointerValueIntInitialized;");
         cb.AppendLine($"const {cfg.PointerFloatInitAlias} = Citizen.pointerValueFloatInitialized;");
         cb.AppendLine($"const {cfg.FloatWrapperAlias} = (v: number) => v + 0.0000000001;");
-        cb.AppendLine($"const {cfg.HashWrapperAlias} = (v: string | number) => (typeof v === 'string' ? GetHashKey(v) : v) & 0xFFFFFFFF;");
+        cb.AppendLine($"const {cfg.HashWrapperAlias} = (v: string | number) => (typeof v === 'string' ? GetHashKey(v) : v) & {SpecialNatives.HashMask};");
         cb.AppendLine();
     }
 
@@ -92,7 +92,7 @@ public class RawNativeBuilder
         cb.AppendLine($"local {cfg.PointerVectorAlias} = Citizen.PointerValueVector");
         cb.AppendLine($"local {cfg.PointerIntInitAlias} = Citizen.PointerValueIntInitialized");
         cb.AppendLine($"local {cfg.PointerFloatInitAlias} = Citizen.PointerValueFloatInitialized");
-        cb.AppendLine($"local {cfg.HashWrapperAlias} = function(v) return (type(v) == 'string' and GetHashKey(v) or v) & 0xFFFFFFFF end");
+        cb.AppendLine($"local {cfg.HashWrapperAlias} = function(v) return (type(v) == 'string' and GetHashKey(v) or v) & {SpecialNatives.HashMask} end");
         cb.AppendLine();
     }
 
@@ -262,19 +262,8 @@ public class RawNativeBuilder
         }
     }
 
-    private string MapDefaultValue(string value, TypeInfo type)
-    {
-        // Convert C-style boolean literals to TypeScript/Lua
-        if (type.IsBool)
-        {
-            return value.Equals("true", StringComparison.OrdinalIgnoreCase) ||
-                   value.Equals("TRUE", StringComparison.OrdinalIgnoreCase) ||
-                   value == "1"
-                ? "true"
-                : "false";
-        }
-        return value;
-    }
+    private string MapDefaultValue(string value, TypeInfo type) =>
+        Utilities.DefaultValueMapper.MapDefaultValue(value, type);
 
     private string BuildReturnType(TypeInfo returnType, List<NativeParameter> outputParams)
     {
@@ -385,7 +374,7 @@ public class RawNativeBuilder
             // Wrap hash returns to ensure unsigned (simple case with no output params)
             if (hasHashReturn)
             {
-                invokeExpr = $"({invokeExpr}) & 0xFFFFFFFF";
+                invokeExpr = $"({invokeExpr}) & {SpecialNatives.HashMask}";
             }
 
             _cb.AppendLine($"return {invokeExpr};");
@@ -419,7 +408,7 @@ public class RawNativeBuilder
                 var expr = $"result[{idx}]";
                 // Wrap hash return to ensure unsigned
                 if (native.ReturnType.Category == TypeCategory.Hash)
-                    expr = $"{expr} & 0xFFFFFFFF";
+                    expr = $"{expr} & {SpecialNatives.HashMask}";
                 parts.Add(expr);
                 idx++;
             }

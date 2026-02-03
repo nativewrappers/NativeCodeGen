@@ -2,6 +2,7 @@ using Markdig;
 using Markdig.Syntax;
 using Markdig.Syntax.Inlines;
 using NativeCodeGen.Core.Models;
+using NativeCodeGen.Core.Utilities;
 
 namespace NativeCodeGen.Core.Parsing;
 
@@ -70,12 +71,12 @@ public class MdxParser
                     else if (AllowedSections.Contains(headingText))
                     {
                         currentSection = headingText;
-                        if (headingText.Equals("Parameters", StringComparison.OrdinalIgnoreCase))
+                        if (headingText.EqualsIgnoreCase("Parameters"))
                             foundParameters = true;
-                        else if (headingText.Equals("Return value", StringComparison.OrdinalIgnoreCase))
+                        else if (headingText.EqualsIgnoreCase("Return value"))
                             foundReturnValue = true;
                     }
-                    else if (!headingText.Equals(native.Name, StringComparison.OrdinalIgnoreCase))
+                    else if (!headingText.EqualsIgnoreCase(native.Name))
                     {
                         // Unknown section
                         result.Errors.Add(new ParseError
@@ -97,7 +98,7 @@ public class MdxParser
                         if (hashLine.StartsWith("//"))
                         {
                             var hashPart = hashLine[2..].Trim();
-                            if (hashPart.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
+                            if (hashPart.StartsWithIgnoreCase("0x"))
                             {
                                 native.Hash = hashPart;
                             }
@@ -136,7 +137,7 @@ public class MdxParser
                             native.Parameters = parameters;
 
                             // Verify name matches heading
-                            if (!name.Equals(native.Name, StringComparison.OrdinalIgnoreCase))
+                            if (!name.EqualsIgnoreCase(native.Name))
                             {
                                 result.Warnings.Add(new ParseWarning
                                 {
@@ -193,18 +194,18 @@ public class MdxParser
                     }
                     break;
 
-                case ListBlock listBlock when currentSection?.Equals("Parameters", StringComparison.OrdinalIgnoreCase) == true:
+                case ListBlock listBlock when currentSection?.EqualsIgnoreCase("Parameters") == true:
                     ParseParameterList(listBlock, native, parameterDescriptions, out var documentedParamOrder, filePath, frontmatterEndLine);
 
                     // Validate parameter count, names, and order
                     ValidateParameters(native.Parameters, documentedParamOrder, result, filePath, frontmatterEndLine + listBlock.Line);
                     break;
 
-                case ParagraphBlock returnParagraph when currentSection?.Equals("Return value", StringComparison.OrdinalIgnoreCase) == true:
+                case ParagraphBlock returnParagraph when currentSection?.EqualsIgnoreCase("Return value") == true:
                     native.ReturnDescription = GetParagraphText(returnParagraph);
                     break;
 
-                case FencedCodeBlock exampleBlock when currentSection?.Equals("Examples", StringComparison.OrdinalIgnoreCase) == true:
+                case FencedCodeBlock exampleBlock when currentSection?.EqualsIgnoreCase("Examples") == true:
                     var exampleCode = exampleBlock.Lines.ToString().Trim();
                     if (!string.IsNullOrWhiteSpace(exampleCode))
                     {

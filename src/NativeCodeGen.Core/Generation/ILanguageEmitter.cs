@@ -84,6 +84,16 @@ public interface ILanguageEmitter
     void EmitClassEnd(CodeBuilder cb, string className, ClassKind kind);
 
     /// <summary>
+    /// Emits a lazy-initialized accessor that caches a wrapper class instance.
+    /// </summary>
+    void EmitLazyAccessor(CodeBuilder cb, string className, LazyAccessor accessor);
+
+    /// <summary>
+    /// Emits a native accessor that directly invokes a native function.
+    /// </summary>
+    void EmitNativeAccessor(CodeBuilder cb, string className, NativeAccessor accessor);
+
+    /// <summary>
     /// Emits a constructor for a handle-based class.
     /// </summary>
     void EmitHandleConstructor(CodeBuilder cb, string className, string? baseClass);
@@ -188,6 +198,59 @@ public interface ILanguageEmitter
     /// Emits a nested struct field accessor.
     /// </summary>
     void EmitNestedStructAccessor(CodeBuilder cb, string structName, string fieldName, string nestedStructName, int offset, bool isArray, int arraySize, string? comment);
+}
+
+/// <summary>
+/// Defines a lazy-initialized accessor property.
+/// </summary>
+public record LazyAccessor(string FieldName, string ReturnType, string InitExpression);
+
+/// <summary>
+/// Defines a special accessor that invokes a native directly.
+/// </summary>
+public record NativeAccessor(string Name, string ReturnType, string Hash, string Description);
+
+/// <summary>
+/// Definitions for special class accessors that require hardcoded generation.
+/// </summary>
+public static class SpecialAccessors
+{
+    /// <summary>
+    /// Lazy accessors for Ped class (task and weapon wrappers).
+    /// </summary>
+    public static readonly LazyAccessor[] PedAccessors =
+    [
+        new("_task", "PedTask", "PedTask"),
+        new("_weapon", "Weapon", "Weapon")
+    ];
+
+    /// <summary>
+    /// Lazy accessors for Vehicle class (task wrapper).
+    /// </summary>
+    public static readonly LazyAccessor[] VehicleAccessors =
+    [
+        new("_task", "VehicleTask", "VehicleTask")
+    ];
+
+    /// <summary>
+    /// Native accessor for Player.ServerId.
+    /// </summary>
+    public static readonly NativeAccessor PlayerServerId = new(
+        "ServerId",
+        "number",
+        SpecialNatives.GetPlayerServerId,
+        "Gets the player's server ID. In multiplayer, this is the player's unique server-side identifier."
+    );
+
+    /// <summary>
+    /// Native accessor for Entity.NetworkId.
+    /// </summary>
+    public static readonly NativeAccessor EntityNetworkId = new(
+        "NetworkId",
+        "number",
+        SpecialNatives.NetworkGetNetworkIdFromEntity,
+        "Gets the network ID of this entity for network synchronization."
+    );
 }
 
 /// <summary>

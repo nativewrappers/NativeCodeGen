@@ -3,6 +3,17 @@ using NativeCodeGen.Core.Models;
 namespace NativeCodeGen.Core.Generation;
 
 /// <summary>
+/// Complete information for generating DataView field accessors.
+/// </summary>
+public record DataViewAccessorInfo(
+    string LanguageType,
+    string GetMethod,
+    string SetMethod,
+    string EndianArg,
+    bool IsBool
+);
+
+/// <summary>
 /// Maps C types to target language types.
 /// </summary>
 public interface ITypeMapper
@@ -55,6 +66,11 @@ public interface ITypeMapper
     /// Returns (languageType, getMethod, setMethod).
     /// </summary>
     (string LanguageType, string GetMethod, string SetMethod) GetDataViewAccessor(TypeInfo type);
+
+    /// <summary>
+    /// Gets complete DataView accessor info including endianness handling.
+    /// </summary>
+    DataViewAccessorInfo GetDataViewAccessorInfo(TypeInfo type);
 
     /// <summary>
     /// Gets the mapped type for a pointer/output parameter (the type that will be returned).

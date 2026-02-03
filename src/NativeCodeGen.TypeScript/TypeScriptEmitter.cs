@@ -1,6 +1,7 @@
 using NativeCodeGen.Core.Generation;
 using NativeCodeGen.Core.Models;
 using NativeCodeGen.Core.TypeSystem;
+using static NativeCodeGen.Core.Generation.SpecialNatives;
 
 namespace NativeCodeGen.TypeScript;
 
@@ -16,35 +17,8 @@ public class TypeScriptEmitter : ILanguageEmitter
     public string FileExtension => ".ts";
     public string SelfReference => "this";
 
-    public string MapDefaultValue(string value, TypeInfo type)
-    {
-        // Convert C-style boolean literals to TypeScript
-        if (type.IsBool)
-        {
-            return value.Equals("true", StringComparison.OrdinalIgnoreCase) ||
-                   value.Equals("TRUE", StringComparison.OrdinalIgnoreCase) ||
-                   value == "1"
-                ? "true"
-                : "false";
-        }
-
-        // Numeric values pass through
-        if (type.Category == TypeCategory.Primitive && (type.IsFloat || type.Name == "int"))
-        {
-            return value;
-        }
-
-        // String values need quotes if not already quoted
-        if (type.Category == TypeCategory.String)
-        {
-            if (value.StartsWith("\"") && value.EndsWith("\""))
-                return value;
-            return $"\"{value}\"";
-        }
-
-        // Default: pass through as-is
-        return value;
-    }
+    public string MapDefaultValue(string value, TypeInfo type) =>
+        Core.Utilities.DefaultValueMapper.MapDefaultValue(value, type);
 
     public DocBuilder CreateDocBuilder() => new JsDocBuilder();
 
@@ -211,75 +185,25 @@ public class TypeScriptEmitter : ILanguageEmitter
     public void EmitClassEnd(CodeBuilder cb, string className, ClassKind kind)
     {
         // Add special accessors before closing the class
-        if (kind == ClassKind.Handle && className == "Ped")
+        if (kind == ClassKind.Handle)
         {
-            cb.AppendLine();
-            cb.AppendLine("private _task?: PedTask;");
-            cb.AppendLine("private _weapon?: Weapon;");
-            cb.AppendLine();
-            cb.AppendLine("get task(): PedTask {");
-            cb.Indent();
-            cb.AppendLine("if (!this._task) {");
-            cb.Indent();
-            cb.AppendLine("this._task = new PedTask(this);");
-            cb.Dedent();
-            cb.AppendLine("}");
-            cb.AppendLine("return this._task;");
-            cb.Dedent();
-            cb.AppendLine("}");
-            cb.AppendLine();
-            cb.AppendLine("get weapon(): Weapon {");
-            cb.Indent();
-            cb.AppendLine("if (!this._weapon) {");
-            cb.Indent();
-            cb.AppendLine("this._weapon = new Weapon(this);");
-            cb.Dedent();
-            cb.AppendLine("}");
-            cb.AppendLine("return this._weapon;");
-            cb.Dedent();
-            cb.AppendLine("}");
-        }
-        else if (kind == ClassKind.Handle && className == "Vehicle")
-        {
-            cb.AppendLine();
-            cb.AppendLine("private _task?: VehicleTask;");
-            cb.AppendLine();
-            cb.AppendLine("get task(): VehicleTask {");
-            cb.Indent();
-            cb.AppendLine("if (!this._task) {");
-            cb.Indent();
-            cb.AppendLine("this._task = new VehicleTask(this);");
-            cb.Dedent();
-            cb.AppendLine("}");
-            cb.AppendLine("return this._task;");
-            cb.Dedent();
-            cb.AppendLine("}");
-        }
-        else if (kind == ClassKind.Handle && className == "Player")
-        {
-            cb.AppendLine();
-            cb.AppendLine("/**");
-            cb.AppendLine(" * Gets the player's server ID. In multiplayer, this is the player's unique server-side identifier.");
-            cb.AppendLine(" */");
-            cb.AppendLine("get ServerId(): number {");
-            cb.Indent();
-            // GET_PLAYER_SERVER_ID = 0x4D97BCC7 (CFX native)
-            cb.AppendLine("return inv<number>('0x4D97BCC7', this.handle, rai());");
-            cb.Dedent();
-            cb.AppendLine("}");
-        }
-        else if (kind == ClassKind.Handle && className == "Entity")
-        {
-            cb.AppendLine();
-            cb.AppendLine("/**");
-            cb.AppendLine(" * Gets the network ID of this entity for network synchronization.");
-            cb.AppendLine(" */");
-            cb.AppendLine("get NetworkId(): number {");
-            cb.Indent();
-            // NETWORK_GET_NETWORK_ID_FROM_ENTITY = 0xA11700682F3AD45C
-            cb.AppendLine("return inv<number>('0xA11700682F3AD45C', this.handle, rai());");
-            cb.Dedent();
-            cb.AppendLine("}");
+            switch (className)
+            {
+                case "Ped":
+                    foreach (var accessor in SpecialAccessors.PedAccessors)
+                        EmitLazyAccessor(cb, className, accessor);
+                    break;
+                case "Vehicle":
+                    foreach (var accessor in SpecialAccessors.VehicleAccessors)
+                        EmitLazyAccessor(cb, className, accessor);
+                    break;
+                case "Player":
+                    EmitNativeAccessor(cb, className, SpecialAccessors.PlayerServerId);
+                    break;
+                case "Entity":
+                    EmitNativeAccessor(cb, className, SpecialAccessors.EntityNetworkId);
+                    break;
+            }
         }
 
         cb.Dedent();
@@ -291,6 +215,37 @@ public class TypeScriptEmitter : ILanguageEmitter
             cb.AppendLine();
             cb.AppendLine($"registerHandle('{className}', {className});");
         }
+    }
+
+    public void EmitLazyAccessor(CodeBuilder cb, string className, LazyAccessor accessor)
+    {
+        var propertyName = accessor.FieldName.TrimStart('_');
+        cb.AppendLine();
+        cb.AppendLine($"private {accessor.FieldName}?: {accessor.ReturnType};");
+        cb.AppendLine();
+        cb.AppendLine($"get {propertyName}(): {accessor.ReturnType} {{");
+        cb.Indent();
+        cb.AppendLine($"if (!this.{accessor.FieldName}) {{");
+        cb.Indent();
+        cb.AppendLine($"this.{accessor.FieldName} = new {accessor.InitExpression}(this);");
+        cb.Dedent();
+        cb.AppendLine("}");
+        cb.AppendLine($"return this.{accessor.FieldName};");
+        cb.Dedent();
+        cb.AppendLine("}");
+    }
+
+    public void EmitNativeAccessor(CodeBuilder cb, string className, NativeAccessor accessor)
+    {
+        cb.AppendLine();
+        cb.AppendLine("/**");
+        cb.AppendLine($" * {accessor.Description}");
+        cb.AppendLine(" */");
+        cb.AppendLine($"get {accessor.Name}(): {accessor.ReturnType} {{");
+        cb.Indent();
+        cb.AppendLine($"return inv<{accessor.ReturnType}>('{accessor.Hash}', this.handle, rai());");
+        cb.Dedent();
+        cb.AppendLine("}");
     }
 
     public void EmitHandleConstructor(CodeBuilder cb, string className, string? baseClass)
@@ -316,10 +271,8 @@ public class TypeScriptEmitter : ILanguageEmitter
     {
         cb.AppendLine($"static fromNetworkId(netId: number): {className} | null {{");
         cb.Indent();
-        // NETWORK_DOES_ENTITY_EXIST_WITH_NETWORK_ID = 0x18A47D074708FD68
-        // NETWORK_GET_ENTITY_FROM_NETWORK_ID = 0xCE4E5D9B0A4FF560
-        cb.AppendLine("if (!inv<number>('0x18A47D074708FD68', netId, rai())) return null;");
-        cb.AppendLine($"return {className}.fromHandle(inv<number>('0xCE4E5D9B0A4FF560', netId, rai()));");
+        cb.AppendLine($"if (!inv<number>('{SpecialNatives.NetworkDoesEntityExistWithNetworkId}', netId, rai())) return null;");
+        cb.AppendLine($"return {className}.fromHandle(inv<number>('{SpecialNatives.NetworkGetEntityFromNetworkId}', netId, rai()));");
         cb.Dedent();
         cb.AppendLine("}");
         cb.AppendLine();
@@ -480,7 +433,7 @@ public class TypeScriptEmitter : ILanguageEmitter
             }
             else if (returnType.Category == TypeCategory.Hash)
             {
-                invokeExpr = $"({invokeExpr}) & 0xFFFFFFFF";
+                invokeExpr = $"({invokeExpr}) & {HashMask}";
             }
             else if (returnType.IsBool)
             {
@@ -533,7 +486,7 @@ public class TypeScriptEmitter : ILanguageEmitter
             }
             else if (returnType.Category == TypeCategory.Hash)
             {
-                returnParts.Add($"{GetResultAccess(resultIndex)} & 0xFFFFFFFF");
+                returnParts.Add($"{GetResultAccess(resultIndex)} & {HashMask}");
             }
             else
             {
@@ -627,9 +580,7 @@ public class TypeScriptEmitter : ILanguageEmitter
 
     public void EmitPrimitiveGetter(CodeBuilder cb, string structName, string fieldName, int offset, TypeInfo type, string? comment)
     {
-        var (tsType, getMethod, _) = _typeMapper.GetDataViewAccessor(type);
-        var needsEndian = StructLayoutCalculator.NeedsEndianArgument(type);
-        var endianArg = needsEndian ? ", true" : "";
+        var info = _typeMapper.GetDataViewAccessorInfo(type);
 
         cb.AppendLine();
         if (!string.IsNullOrWhiteSpace(comment))
@@ -637,39 +588,31 @@ public class TypeScriptEmitter : ILanguageEmitter
             new JsDocBuilder().AddDescription(comment).Render(cb);
         }
 
-        cb.AppendLine($"get {fieldName}(): {tsType} {{");
+        cb.AppendLine($"get {fieldName}(): {info.LanguageType} {{");
         cb.Indent();
-
-        cb.AppendLine(type.IsBool
-            ? $"return this.view.{getMethod}({offset}) !== 0;"
-            : $"return this.view.{getMethod}({offset}{endianArg});");
-
+        cb.AppendLine(info.IsBool
+            ? $"return this.view.{info.GetMethod}({offset}) !== 0;"
+            : $"return this.view.{info.GetMethod}({offset}{info.EndianArg});");
         cb.Dedent();
         cb.AppendLine("}");
     }
 
     public void EmitPrimitiveSetter(CodeBuilder cb, string structName, string fieldName, int offset, TypeInfo type)
     {
-        var (tsType, _, setMethod) = _typeMapper.GetDataViewAccessor(type);
-        var needsEndian = StructLayoutCalculator.NeedsEndianArgument(type);
-        var endianArg = needsEndian ? ", true" : "";
+        var info = _typeMapper.GetDataViewAccessorInfo(type);
 
-        cb.AppendLine($"set {fieldName}(value: {tsType}) {{");
+        cb.AppendLine($"set {fieldName}(value: {info.LanguageType}) {{");
         cb.Indent();
-
-        cb.AppendLine(type.IsBool
-            ? $"this.view.{setMethod}({offset}, value ? 1 : 0);"
-            : $"this.view.{setMethod}({offset}, value{endianArg});");
-
+        cb.AppendLine(info.IsBool
+            ? $"this.view.{info.SetMethod}({offset}, value ? 1 : 0);"
+            : $"this.view.{info.SetMethod}({offset}, value{info.EndianArg});");
         cb.Dedent();
         cb.AppendLine("}");
     }
 
     public void EmitArrayGetter(CodeBuilder cb, string structName, string fieldName, int offset, int elementSize, int arraySize, TypeInfo type, string? comment)
     {
-        var (tsType, getMethod, _) = _typeMapper.GetDataViewAccessor(type);
-        var needsEndian = StructLayoutCalculator.NeedsEndianArgument(type);
-        var endianArg = needsEndian ? ", true" : "";
+        var info = _typeMapper.GetDataViewAccessorInfo(type);
 
         cb.AppendLine();
         new JsDocBuilder()
@@ -678,23 +621,19 @@ public class TypeScriptEmitter : ILanguageEmitter
             .AddThrows("RangeError", "If index is out of bounds")
             .Render(cb);
 
-        cb.AppendLine($"get{fieldName}(index: number): {tsType} {{");
+        cb.AppendLine($"get{fieldName}(index: number): {info.LanguageType} {{");
         cb.Indent();
         cb.AppendLine($"if (index < 0 || index >= {arraySize}) throw new RangeError('Index out of bounds');");
-
-        cb.AppendLine(type.IsBool
-            ? $"return this.view.{getMethod}({offset} + index * {elementSize}) !== 0;"
-            : $"return this.view.{getMethod}({offset} + index * {elementSize}{endianArg});");
-
+        cb.AppendLine(info.IsBool
+            ? $"return this.view.{info.GetMethod}({offset} + index * {elementSize}) !== 0;"
+            : $"return this.view.{info.GetMethod}({offset} + index * {elementSize}{info.EndianArg});");
         cb.Dedent();
         cb.AppendLine("}");
     }
 
     public void EmitArraySetter(CodeBuilder cb, string structName, string fieldName, int offset, int elementSize, int arraySize, TypeInfo type)
     {
-        var (tsType, _, setMethod) = _typeMapper.GetDataViewAccessor(type);
-        var needsEndian = StructLayoutCalculator.NeedsEndianArgument(type);
-        var endianArg = needsEndian ? ", true" : "";
+        var info = _typeMapper.GetDataViewAccessorInfo(type);
 
         new JsDocBuilder()
             .AddParam("index", $"Array index (0-{arraySize - 1})")
@@ -702,14 +641,12 @@ public class TypeScriptEmitter : ILanguageEmitter
             .AddThrows("RangeError", "If index is out of bounds")
             .Render(cb);
 
-        cb.AppendLine($"set{fieldName}(index: number, value: {tsType}): void {{");
+        cb.AppendLine($"set{fieldName}(index: number, value: {info.LanguageType}): void {{");
         cb.Indent();
         cb.AppendLine($"if (index < 0 || index >= {arraySize}) throw new RangeError('Index out of bounds');");
-
-        cb.AppendLine(type.IsBool
-            ? $"this.view.{setMethod}({offset} + index * {elementSize}, value ? 1 : 0);"
-            : $"this.view.{setMethod}({offset} + index * {elementSize}, value{endianArg});");
-
+        cb.AppendLine(info.IsBool
+            ? $"this.view.{info.SetMethod}({offset} + index * {elementSize}, value ? 1 : 0);"
+            : $"this.view.{info.SetMethod}({offset} + index * {elementSize}, value{info.EndianArg});");
         cb.Dedent();
         cb.AppendLine("}");
     }

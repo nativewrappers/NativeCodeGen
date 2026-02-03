@@ -1,3 +1,5 @@
+using NativeCodeGen.Core.Utilities;
+
 namespace NativeCodeGen.Core.Parsing;
 
 public enum CTokenType
@@ -222,7 +224,7 @@ public class CLexer
             _position += 2;
             _column += 2;
             // Read hex digits
-            while (_position < _input.Length && IsHexDigit(_input[_position]))
+            while (_position < _input.Length && LexerUtilities.IsHexDigit(_input[_position]))
             {
                 _position++;
                 _column++;
@@ -265,6 +267,4 @@ public class CLexer
         };
     }
 
-    private static bool IsHexDigit(char c) =>
-        char.IsDigit(c) || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
 }

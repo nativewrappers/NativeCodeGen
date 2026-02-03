@@ -319,6 +319,14 @@ public abstract class TypeMapperBase : ITypeMapper
         };
     }
 
+    public virtual DataViewAccessorInfo GetDataViewAccessorInfo(TypeInfo type)
+    {
+        var (langType, getMethod, setMethod) = GetDataViewAccessor(type);
+        var needsEndian = StructLayoutCalculator.NeedsEndianArgument(type);
+        var endianArg = needsEndian ? ", true" : "";
+        return new DataViewAccessorInfo(langType, getMethod, setMethod, endianArg, type.IsBool);
+    }
+
     public virtual string GetOutputParamType(TypeInfo type)
     {
         if (type.IsVector3)
