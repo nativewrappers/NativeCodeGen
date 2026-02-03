@@ -51,6 +51,9 @@ public record LanguageConfig
     // Whether to use primitive type aliases (float, u8, etc.) for better documentation
     public required bool UsePrimitiveAliases { get; init; }
 
+    // Whether the language supports optional chaining (?.) and nullish coalescing (??)
+    public required bool UseOptionalChaining { get; init; }
+
     public static readonly LanguageConfig TypeScript = new()
     {
         VoidType = "void",
@@ -82,7 +85,8 @@ public record LanguageConfig
         UseHashWrapper = true,
         SupportsGetters = true,
         UseInlineDefaults = false,
-        UsePrimitiveAliases = true
+        UsePrimitiveAliases = true,
+        UseOptionalChaining = true
     };
 
     public static readonly LanguageConfig Lua = new()
@@ -98,7 +102,7 @@ public record LanguageConfig
         AnyType = "any",
         NullableSuffix = "|nil",
         HashType = "string|number",
-        UseTypedHandles = false,
+        UseTypedHandles = true,
 
         InvokeAlias = "inv",
         ResultAsIntAlias = "rai",
@@ -116,7 +120,8 @@ public record LanguageConfig
         UseHashWrapper = true,
         SupportsGetters = false,
         UseInlineDefaults = true,
-        UsePrimitiveAliases = false
+        UsePrimitiveAliases = false,
+        UseOptionalChaining = false
     };
 }
 

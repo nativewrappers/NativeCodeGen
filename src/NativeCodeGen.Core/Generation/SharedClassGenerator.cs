@@ -373,7 +373,7 @@ public class SharedClassGenerator
             : (returnTypeOverride ?? _emitter.TypeMapper.BuildCombinedReturnType(native.ReturnType, outputParamTypes));
 
         // Generate documentation
-        EmitMethodDoc(cb, native, inputParams, outputParams, returnType, chainable);
+        EmitMethodDoc(cb, native, methodParams, outputParams, returnType, chainable);
 
         // Emit method
         _emitter.EmitMethodStart(cb, className, methodName, methodParams, returnType, kind);
@@ -393,7 +393,7 @@ public class SharedClassGenerator
     private void EmitMethodDoc(
         CodeBuilder cb,
         NativeDefinition native,
-        List<NativeParameter> inputParams,
+        List<MethodParameter> methodParams,
         List<NativeParameter> outputParams,
         string returnType,
         bool chainable)
@@ -401,10 +401,13 @@ public class SharedClassGenerator
         var doc = _emitter.CreateDocBuilder()
             .AddDescription(MdxComponentParser.FormatDescriptionForCodeGen(native.Description));
 
-        foreach (var param in inputParams)
+        // Match method params with native params to get descriptions
+        var inputParams = native.Parameters.Where(p => !p.IsPureOutput && !p.IsThis).ToList();
+        for (var i = 0; i < methodParams.Count && i < inputParams.Count; i++)
         {
-            var type = _emitter.TypeMapper.MapType(param.Type, param.IsNullable);
-            doc.AddParam(param.Name, type, MdxComponentParser.FormatDescriptionForCodeGen(param.Description));
+            var methodParam = methodParams[i];
+            var nativeParam = inputParams[i];
+            doc.AddParam(methodParam.Name, methodParam.Type, MdxComponentParser.FormatDescriptionForCodeGen(nativeParam.Description));
         }
 
         if (chainable)
@@ -455,11 +458,24 @@ public class SharedClassGenerator
     }
 
     private List<MethodParameter> BuildMethodParams(List<NativeParameter> inputParams) =>
-        inputParams.Select(p => new MethodParameter(
-            p.Name,
-            _emitter.TypeMapper.MapType(p.Type, p.IsNullable),
-            p.DefaultValue != null ? _emitter.MapDefaultValue(p.DefaultValue, p.Type) : null
-        )).ToList();
+        inputParams.Select(p =>
+        {
+            var type = _emitter.TypeMapper.MapType(p.Type, p.IsNullable);
+            var defaultValue = p.DefaultValue != null ? _emitter.MapDefaultValue(p.DefaultValue, p.Type) : null;
+
+            // If a class handle type has a default of 0/nullptr/NULL, treat it as nullable
+            // e.g., Entity = 0 becomes Entity | null = null (TS) or Entity|nil = nil (Lua)
+            if (defaultValue is "0" or "nullptr" or "NULL" && TypeInfo.IsClassHandle(p.Type.Name))
+            {
+                var config = _emitter.Config;
+                var nullSuffix = config.NullableSuffix;
+                var nullValue = config.UseOptionalChaining ? "null" : "nil";
+                type = $"{type}{nullSuffix}";
+                defaultValue = nullValue;
+            }
+
+            return new MethodParameter(p.Name, type, defaultValue);
+        }).ToList();
 
     private List<string> BuildInvokeArgs(string? firstArg, List<NativeParameter> parameters)
     {

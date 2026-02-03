@@ -261,4 +261,184 @@ public class TypeValidatorTests
     }
 
     #endregion
+
+    #region Default Value Validation
+
+    [Theory]
+    [InlineData("int", "0", null)]
+    [InlineData("int", "123", null)]
+    [InlineData("int", "-1", null)]
+    [InlineData("int", "0x1F", null)]
+    [InlineData("u32", "0", null)]
+    [InlineData("float", "0", null)]
+    [InlineData("float", "1.5", null)]
+    [InlineData("float", "-3.14f", null)]
+    [InlineData("float", "1e-5", null)]
+    [InlineData("BOOL", "true", null)]
+    [InlineData("BOOL", "false", null)]
+    [InlineData("BOOL", "0", null)]
+    [InlineData("BOOL", "1", null)]
+    public void ValidateDefaultForType_ValidPrimitiveDefaults_ReturnsNull(string typeName, string defaultValue, string? expected)
+    {
+        var type = new TypeInfo { Name = typeName, Category = TypeCategory.Primitive };
+        var result = TypeValidator.ValidateDefaultForType(type, defaultValue, "parameter 'test'");
+        Assert.Equal(expected, result);
+    }
+
+    [Theory]
+    [InlineData("int", "abc")]
+    [InlineData("int", "1.5")]
+    [InlineData("float", "abc")]
+    [InlineData("BOOL", "yes")]
+    [InlineData("BOOL", "2")]
+    public void ValidateDefaultForType_InvalidPrimitiveDefaults_ReturnsError(string typeName, string defaultValue)
+    {
+        var type = new TypeInfo { Name = typeName, Category = TypeCategory.Primitive };
+        var result = TypeValidator.ValidateDefaultForType(type, defaultValue, "parameter 'test'");
+        Assert.NotNull(result);
+        Assert.Contains("invalid default", result);
+    }
+
+    [Theory]
+    [InlineData("0")]
+    [InlineData("nullptr")]
+    [InlineData("NULL")]
+    public void ValidateDefaultForType_HandleTypeWithNullValues_ReturnsNull(string defaultValue)
+    {
+        var type = new TypeInfo { Name = "Entity", Category = TypeCategory.Handle };
+        var result = TypeValidator.ValidateDefaultForType(type, defaultValue, "parameter 'entity'");
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public void ValidateDefaultForType_HandleTypeWithNonZero_ReturnsError()
+    {
+        var type = new TypeInfo { Name = "Entity", Category = TypeCategory.Handle };
+        var result = TypeValidator.ValidateDefaultForType(type, "1", "parameter 'entity'");
+        Assert.NotNull(result);
+        Assert.Contains("invalid default", result);
+        Assert.Contains("'0', 'nullptr', or 'NULL'", result);
+    }
+
+    [Fact]
+    public void ValidateDefaultForType_ClassHandleWithNonZero_ProvidesSuggestion()
+    {
+        var type = new TypeInfo { Name = "Ped", Category = TypeCategory.Handle };
+        var result = TypeValidator.ValidateDefaultForType(type, "123", "parameter 'ped'");
+        Assert.NotNull(result);
+        Assert.Contains("will be converted to null", result);
+    }
+
+    [Theory]
+    [InlineData("\"model\"", null)]
+    [InlineData("'model'", null)]
+    [InlineData("0", null)]
+    [InlineData("0x12345678", null)]
+    public void ValidateDefaultForType_ValidHashDefaults_ReturnsNull(string defaultValue, string? expected)
+    {
+        var type = new TypeInfo { Name = "Hash", Category = TypeCategory.Hash };
+        var result = TypeValidator.ValidateDefaultForType(type, defaultValue, "parameter 'hash'");
+        Assert.Equal(expected, result);
+    }
+
+    [Fact]
+    public void ValidateDefaultForType_InvalidHashDefault_ReturnsError()
+    {
+        var type = new TypeInfo { Name = "Hash", Category = TypeCategory.Hash };
+        var result = TypeValidator.ValidateDefaultForType(type, "invalid", "parameter 'hash'");
+        Assert.NotNull(result);
+        Assert.Contains("invalid default", result);
+    }
+
+    [Theory]
+    [InlineData("\"hello\"", null)]
+    [InlineData("nullptr", null)]
+    [InlineData("NULL", null)]
+    [InlineData("0", null)]
+    public void ValidateDefaultForType_ValidStringDefaults_ReturnsNull(string defaultValue, string? expected)
+    {
+        var type = new TypeInfo { Name = "char", IsPointer = true, Category = TypeCategory.String };
+        var result = TypeValidator.ValidateDefaultForType(type, defaultValue, "parameter 'str'");
+        Assert.Equal(expected, result);
+    }
+
+    [Fact]
+    public void ValidateDefaultForType_InvalidStringDefault_ReturnsError()
+    {
+        var type = new TypeInfo { Name = "char", IsPointer = true, Category = TypeCategory.String };
+        var result = TypeValidator.ValidateDefaultForType(type, "unquoted", "parameter 'str'");
+        Assert.NotNull(result);
+        Assert.Contains("invalid default", result);
+    }
+
+    [Theory]
+    [InlineData("0")]
+    [InlineData("1")]
+    [InlineData("SomeEnumMember")]
+    public void ValidateDefaultForType_ValidEnumDefaults_ReturnsNull(string defaultValue)
+    {
+        var type = new TypeInfo { Name = "MyEnum", Category = TypeCategory.Enum };
+        var result = TypeValidator.ValidateDefaultForType(type, defaultValue, "parameter 'flag'");
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public void ValidateDefaultForType_VectorType_ReturnsError()
+    {
+        var type = new TypeInfo { Name = "Vector3", Category = TypeCategory.Vector3 };
+        var result = TypeValidator.ValidateDefaultForType(type, "0", "parameter 'pos'");
+        Assert.NotNull(result);
+        Assert.Contains("should not have a default value", result);
+    }
+
+    [Fact]
+    public void ValidateNative_ParameterWithInvalidDefault_ReturnsError()
+    {
+        var native = new NativeDefinition
+        {
+            Name = "TEST_NATIVE",
+            Hash = "0x123",
+            ReturnType = new TypeInfo { Name = "void", Category = TypeCategory.Void },
+            Parameters = new List<NativeParameter>
+            {
+                new()
+                {
+                    Name = "entity",
+                    Type = new TypeInfo { Name = "Entity", Category = TypeCategory.Handle },
+                    DefaultValue = "123" // Invalid - should be 0
+                }
+            }
+        };
+
+        var errors = _validator.ValidateNative(native, "test.mdx");
+
+        Assert.Single(errors);
+        Assert.Contains("invalid default", errors[0].Message);
+    }
+
+    [Fact]
+    public void ValidateNative_ParameterWithValidDefault_NoError()
+    {
+        var native = new NativeDefinition
+        {
+            Name = "TEST_NATIVE",
+            Hash = "0x123",
+            ReturnType = new TypeInfo { Name = "void", Category = TypeCategory.Void },
+            Parameters = new List<NativeParameter>
+            {
+                new()
+                {
+                    Name = "entity",
+                    Type = new TypeInfo { Name = "Entity", Category = TypeCategory.Handle },
+                    DefaultValue = "0" // Valid null handle
+                }
+            }
+        };
+
+        var errors = _validator.ValidateNative(native, "test.mdx");
+
+        Assert.Empty(errors);
+    }
+
+    #endregion
 }

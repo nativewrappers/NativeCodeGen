@@ -248,7 +248,7 @@ public class TypeInfoTests
     [InlineData("@in")]
     public void ValidAttributes_ContainsKnownAttributes(string attr)
     {
-        Assert.True(TypeInfo.ValidAttributes.Contains(attr));
+        Assert.Contains(attr, (IEnumerable<string>)TypeInfo.ValidAttributes);
     }
 
     [Theory]
@@ -259,7 +259,7 @@ public class TypeInfoTests
     [InlineData("nullable")]
     public void ValidAttributes_DoesNotContainUnknown(string attr)
     {
-        Assert.False(TypeInfo.ValidAttributes.Contains(attr));
+        Assert.DoesNotContain(attr, (IEnumerable<string>)TypeInfo.ValidAttributes);
     }
 
     #endregion

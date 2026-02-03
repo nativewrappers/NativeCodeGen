@@ -59,10 +59,17 @@ public static class ArgumentBuilder
             return $"{param.Name}.view";
         }
 
-        // Handle types - only class handles have a .handle property
+        // Handle types - only class handles have a .handle property when UseTypedHandles is true
         // Non-class handles (ScrHandle, Prompt) are just numbers
-        if (typeMapper.IsHandleType(param.Type) && TypeInfo.IsClassHandle(param.Type.Name) && !rawMode)
+        if (typeMapper.IsHandleType(param.Type) && TypeInfo.IsClassHandle(param.Type.Name) && !rawMode && config.UseTypedHandles)
         {
+            // If the parameter is nullable (default was 0/nullptr/NULL, now null), handle null -> 0
+            if (mappedDefaultValue is "0" or "null" or "nullptr" or "NULL")
+            {
+                return config.UseOptionalChaining
+                    ? $"{param.Name}?.handle ?? 0"
+                    : $"({param.Name} and {param.Name}.handle or 0)";
+            }
             return $"{param.Name}.handle";
         }
 
