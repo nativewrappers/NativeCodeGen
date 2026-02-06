@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using System.IO.Compression;
 using NativeCodeGen.Core.Models;
 using NativeCodeGen.Core.Parsing;
 using ProtoBuf;
@@ -46,6 +47,15 @@ public class ProtobufExporter : IExporter
         }
 
         using var file = File.Create(binaryPath);
-        Serializer.Serialize(file, exportDb);
+
+        if (options.Compress)
+        {
+            using var gzip = new GZipStream(file, CompressionLevel.SmallestSize);
+            Serializer.Serialize(gzip, exportDb);
+        }
+        else
+        {
+            Serializer.Serialize(file, exportDb);
+        }
     }
 }

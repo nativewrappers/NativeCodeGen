@@ -75,6 +75,11 @@ class Program
             description: "npm package version (e.g., 1.0.0)",
             getDefaultValue: () => "0.0.1");
 
+        var compressOption = new Option<bool>(
+            aliases: new[] { "--compress" },
+            description: "Gzip compress the output (proto format only)",
+            getDefaultValue: () => false);
+
         generateCommand.AddOption(inputOption);
         generateCommand.AddOption(outputOption);
         generateCommand.AddOption(formatOption);
@@ -86,6 +91,7 @@ class Program
         generateCommand.AddOption(packageOption);
         generateCommand.AddOption(packageNameOption);
         generateCommand.AddOption(packageVersionOption);
+        generateCommand.AddOption(compressOption);
 
         generateCommand.SetHandler(async (context) =>
         {
@@ -100,8 +106,9 @@ class Program
             var package_ = context.ParseResult.GetValueForOption(packageOption);
             var packageName = context.ParseResult.GetValueForOption(packageNameOption);
             var packageVersion = context.ParseResult.GetValueForOption(packageVersionOption);
+            var compress = context.ParseResult.GetValueForOption(compressOption);
 
-            var exitCode = await Generate(input, output, format, namespaces, raw, singleFile, strict, exports, package_, packageName, packageVersion);
+            var exitCode = await Generate(input, output, format, namespaces, raw, singleFile, strict, exports, package_, packageName, packageVersion, compress);
             context.ExitCode = exitCode;
         });
 
@@ -136,7 +143,7 @@ class Program
         return await rootCommand.InvokeAsync(args);
     }
 
-    static async Task<int> Generate(string input, string output, string format, string[]? namespaces, bool raw, bool singleFile, bool strict, bool exports, bool package_, string? packageName, string? packageVersion)
+    static async Task<int> Generate(string input, string output, string format, string[]? namespaces, bool raw, bool singleFile, bool strict, bool exports, bool package_, string? packageName, string? packageVersion, bool compress)
     {
         Console.WriteLine($"Generating {format} output...");
         Console.WriteLine($"Input: {input}");
@@ -210,7 +217,8 @@ class Program
             PackageVersion = packageVersion ?? "0.0.1",
             Namespaces = namespaces?.Length > 0
                 ? new HashSet<string>(namespaces.SelectMany(n => n.Split(',')), StringComparer.OrdinalIgnoreCase)
-                : null
+                : null,
+            Compress = compress
         };
 
         exporter.Export(db, output, options);

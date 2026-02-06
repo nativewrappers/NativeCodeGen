@@ -19,4 +19,5 @@ public class ExportOptions
     public HashSet<string>? Namespaces { get; set; }
     public bool IncludeEnums { get; set; } = true;
     public bool IncludeStructs { get; set; } = true;
+    public bool Compress { get; set; }
 }
