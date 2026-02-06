@@ -402,6 +402,16 @@ public class TypeScriptEmitter : ILanguageEmitter
         cb.AppendLine();
     }
 
+    public void EmitSetterProxy(CodeBuilder cb, string propertyName, string methodName, string paramName, string paramType)
+    {
+        cb.AppendLine($"set {propertyName}({paramName}: {paramType}) {{");
+        cb.Indent();
+        cb.AppendLine($"this.{methodName}({paramName});");
+        cb.Dedent();
+        cb.AppendLine("}");
+        cb.AppendLine();
+    }
+
     public void EmitInvokeNative(CodeBuilder cb, string hash, List<string> args, TypeInfo returnType, List<TypeInfo> outputParamTypes)
     {
         var allArgs = new List<string> { $"'{hash}'" };

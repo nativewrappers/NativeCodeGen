@@ -142,6 +142,12 @@ public interface ILanguageEmitter
     void EmitGetterProxy(CodeBuilder cb, string propertyName, string methodName, string returnType);
 
     /// <summary>
+    /// Emits a setter proxy that calls an underlying method.
+    /// Used when a setter has optional parameters - the property calls the method with just the required param.
+    /// </summary>
+    void EmitSetterProxy(CodeBuilder cb, string propertyName, string methodName, string paramName, string paramType);
+
+    /// <summary>
     /// Emits a native invoke call.
     /// </summary>
     /// <param name="cb">The code builder.</param>

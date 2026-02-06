@@ -284,6 +284,11 @@ public class LuaEmitter : ILanguageEmitter
         // Lua doesn't support getters, so this is a no-op
     }
 
+    public void EmitSetterProxy(CodeBuilder cb, string propertyName, string methodName, string paramName, string paramType)
+    {
+        // Lua doesn't support setters, so this is a no-op
+    }
+
     public void EmitInvokeNative(CodeBuilder cb, string hash, List<string> args, TypeInfo returnType, List<TypeInfo> outputParamTypes)
     {
         var allArgs = new List<string> { hash };

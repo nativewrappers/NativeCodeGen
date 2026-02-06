@@ -33,6 +33,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\NativeCodeGen.Core\NativeCodeGen.Core.csproj" />
+    <ProjectReference Include="..\NativeCodeGen.CSharp\NativeCodeGen.CSharp.csproj" />
     <ProjectReference Include="..\NativeCodeGen.Lua\NativeCodeGen.Lua.csproj" />
     <ProjectReference Include="..\NativeCodeGen.TypeScript\NativeCodeGen.TypeScript.csproj" />
   </ItemGroup>

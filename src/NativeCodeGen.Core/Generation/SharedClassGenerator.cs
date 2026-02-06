@@ -270,21 +270,39 @@ public class SharedClassGenerator
             // Standard method (possibly a property getter/setter in TypeScript)
             var outputParamTypes = outputParams.Select(p => p.Type).ToList();
             var returnType = _emitter.TypeMapper.BuildCombinedReturnType(native.ReturnType, outputParamTypes);
-            EmitSingleMethod(cb, native, className, classification.MethodName, methodParams, args,
-                inputParams, outputParams, classification.Kind, chainable: false, returnType);
 
-            // Getter proxy for methods with all optional params
-            if (classification.EmitGetterProxy)
+            // For setters with optional params, emit chainable method first, then setter proxy
+            if (classification.EmitSetterProxy)
             {
-                var propertyName = NameConverter.GetterToPropertyName(methodName);
-                _emitter.EmitGetterProxy(cb, propertyName, methodName, returnType);
-            }
-
-            // Additional chainable method for TypeScript property setters
-            if (classification.EmitAdditionalChainable)
-            {
+                // Emit the chainable method with full params (handles defaults properly)
                 EmitSingleMethod(cb, native, className, methodName, methodParams, args,
                     inputParams, outputParams, MethodKind.ChainableSetter, chainable: true);
+
+                // Emit setter proxy that calls the method
+                var requiredParams = inputParams.Where(p => !p.HasDefaultValue).ToList();
+                var firstRequiredParam = requiredParams.First();
+                var paramType = _emitter.TypeMapper.MapType(firstRequiredParam.Type);
+                var propertyName = NameConverter.SetterToPropertyName(methodName);
+                _emitter.EmitSetterProxy(cb, propertyName, methodName, firstRequiredParam.Name, paramType);
+            }
+            else
+            {
+                EmitSingleMethod(cb, native, className, classification.MethodName, methodParams, args,
+                    inputParams, outputParams, classification.Kind, chainable: false, returnType);
+
+                // Getter proxy for methods with all optional params
+                if (classification.EmitGetterProxy)
+                {
+                    var propertyName = NameConverter.GetterToPropertyName(methodName);
+                    _emitter.EmitGetterProxy(cb, propertyName, methodName, returnType);
+                }
+
+                // Additional chainable method for TypeScript property setters without optional params
+                if (classification.EmitAdditionalChainable)
+                {
+                    EmitSingleMethod(cb, native, className, methodName, methodParams, args,
+                        inputParams, outputParams, MethodKind.ChainableSetter, chainable: true);
+                }
             }
         }
     }
@@ -307,7 +325,8 @@ public class SharedClassGenerator
 
         var isVoidMethod = returnType.Category == TypeCategory.Void && !hasOutputParams;
         var isSetter = isVoidMethod && NameConverter.IsSetterName(methodName);
-        var isSingleParamSetter = isSetter && inputParams.Count == 1;
+        var requiredParamCount = inputParams.Count(p => !p.HasDefaultValue);
+        var isSingleParamSetter = isSetter && requiredParamCount == 1;
         var isGetter = hasReturnValue && NameConverter.IsGetterName(methodName);
         var allParamsOptional = inputParams.Count > 0 && inputParams.All(p => p.HasDefaultValue);
 
@@ -321,9 +340,19 @@ public class SharedClassGenerator
             }
             else if (isSingleParamSetter)
             {
-                result.Kind = MethodKind.Setter;
-                result.MethodName = NameConverter.SetterToPropertyName(methodName);
-                result.EmitAdditionalChainable = true; // Also emit setX() method
+                var hasOptionalParams = inputParams.Any(p => p.HasDefaultValue);
+                if (hasOptionalParams)
+                {
+                    // Setter with optional params: emit chainable method + setter proxy
+                    result.EmitSetterProxy = true;
+                }
+                else
+                {
+                    // Simple setter: emit property setter + chainable method
+                    result.Kind = MethodKind.Setter;
+                    result.MethodName = NameConverter.SetterToPropertyName(methodName);
+                    result.EmitAdditionalChainable = true;
+                }
             }
             else if (isSetter)
             {
@@ -349,6 +378,7 @@ public class SharedClassGenerator
         public bool EmitChainableOnly { get; set; }
         public bool EmitAdditionalChainable { get; set; }
         public bool EmitGetterProxy { get; set; }
+        public bool EmitSetterProxy { get; set; }
     }
 
     /// <summary>

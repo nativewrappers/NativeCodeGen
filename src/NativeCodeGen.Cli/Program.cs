@@ -6,6 +6,7 @@ using NativeCodeGen.Core.Parsing;
 using NativeCodeGen.Core.Registry;
 using NativeCodeGen.Core.Utilities;
 using NativeCodeGen.Core.Validation;
+using NativeCodeGen.CSharp;
 using NativeCodeGen.Lua;
 using NativeCodeGen.TypeScript;
 
@@ -32,7 +33,7 @@ class Program
 
         var formatOption = new Option<string>(
             aliases: new[] { "-f", "--format" },
-            description: "Output format: typescript, lua, json, proto",
+            description: "Output format: typescript, lua, csharp, json, proto",
             getDefaultValue: () => "typescript");
 
         var namespacesOption = new Option<string[]>(
@@ -185,6 +186,7 @@ class Program
         {
             "typescript" or "ts" => new TypeScriptExporter(),
             "lua" => new LuaExporter(),
+            "csharp" or "cs" => new CSharpExporter(),
             "json" => new JsonExporter(),
             "proto" or "protobuf" => new ProtobufExporter(),
             _ => null
@@ -192,7 +194,7 @@ class Program
 
         if (exporter == null)
         {
-            Console.Error.WriteLine($"Error: Unknown format '{format}'. Supported formats: typescript, lua, json, proto");
+            Console.Error.WriteLine($"Error: Unknown format '{format}'. Supported formats: typescript, lua, csharp, json, proto");
             Environment.ExitCode = 1;
             return;
         }
@@ -378,6 +380,14 @@ class Program
                 Column = 1,
                 Message = $"Duplicate hash '{dup.Key}'. Also defined in: {string.Join(", ", natives.Skip(1).Select(n => Path.GetFileName(n.SourceFile ?? "unknown")))}"
             });
+        }
+
+        // Auto-link shared examples to natives by scanning example code for function calls
+        if (db.SharedExamples.Count > 0)
+        {
+            var linked = sharedExampleRegistry.AutoLinkExamples(allNatives);
+            if (linked > 0)
+                Console.WriteLine($"Auto-linked {linked} example references to natives");
         }
 
         // Group natives by namespace

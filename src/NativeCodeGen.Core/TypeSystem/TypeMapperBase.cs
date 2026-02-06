@@ -123,6 +123,42 @@ public record LanguageConfig
         UsePrimitiveAliases = false,
         UseOptionalChaining = false
     };
+
+    public static readonly LanguageConfig CSharp = new()
+    {
+        VoidType = "void",
+        NumberType = "int",
+        BooleanType = "bool",
+        StringType = "string",
+        Vector2Type = "Vector2",
+        Vector3Type = "Vector3",
+        Vector4Type = "Vector4",
+        ColorType = "Color",
+        AnyType = "object",
+        NullableSuffix = "?",
+        HashType = "uint",  // C# uses uint for hashes
+        UseTypedHandles = true,
+
+        // C# doesn't use aliases - direct Function.Call<T>()
+        InvokeAlias = "Function.Call",
+        ResultAsIntAlias = "",
+        ResultAsFloatAlias = "",
+        ResultAsStringAlias = "",
+        ResultAsVectorAlias = "",
+        PointerIntAlias = "",
+        PointerFloatAlias = "",
+        PointerVectorAlias = "",
+        PointerIntInitAlias = "",
+        PointerFloatInitAlias = "",
+        FloatWrapperAlias = "",
+        HashWrapperAlias = "",
+        UseFloatWrapper = false,
+        UseHashWrapper = false,
+        SupportsGetters = true,
+        UseInlineDefaults = false,
+        UsePrimitiveAliases = true,
+        UseOptionalChaining = false  // C# uses null-conditional ?. but we handle it differently
+    };
 }
 
 /// <summary>

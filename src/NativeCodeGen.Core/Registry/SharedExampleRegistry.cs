@@ -1,4 +1,6 @@
+using System.Text.RegularExpressions;
 using NativeCodeGen.Core.Models;
+using NativeCodeGen.Core.Utilities;
 using YamlDotNet.Serialization;
 using YamlDotNet.Serialization.NamingConventions;
 
@@ -140,4 +142,81 @@ public class SharedExampleRegistry
     }
 
     public Dictionary<string, SharedExample> GetAllExamples() => new(_examples);
+
+    /// <summary>
+    /// Auto-links shared examples to natives by scanning example code for function calls
+    /// that match native names (PascalCase, normalized, or original form).
+    /// </summary>
+    public int AutoLinkExamples(IEnumerable<NativeDefinition> natives)
+    {
+        // Build reverse map: function name variant -> natives
+        var nameToNatives = new Dictionary<string, List<NativeDefinition>>(StringComparer.OrdinalIgnoreCase);
+
+        void AddMapping(string key, NativeDefinition native)
+        {
+            if (string.IsNullOrEmpty(key)) return;
+            if (!nameToNatives.TryGetValue(key, out var list))
+            {
+                list = new List<NativeDefinition>();
+                nameToNatives[key] = list;
+            }
+            if (!list.Contains(native))
+                list.Add(native);
+        }
+
+        foreach (var native in natives)
+        {
+            // Original name (e.g., _DATABINDING_ADD_DATA_BOOL)
+            AddMapping(native.Name, native);
+
+            // Normalized name without leading underscores (e.g., DATABINDING_ADD_DATA_BOOL)
+            var normalized = NameConverter.NormalizeNativeName(native.Name);
+            AddMapping(normalized, native);
+
+            // PascalCase name (e.g., DatabindingAddDataBool) - matches raw function output
+            if (!normalized.StartsWith("N_"))
+            {
+                var pascalName = NameConverter.ToPascalCase(normalized);
+                AddMapping(pascalName, native);
+            }
+        }
+
+        int linkedCount = 0;
+
+        foreach (var (name, example) in _examples)
+        {
+            var referencedNatives = new HashSet<NativeDefinition>();
+
+            foreach (var codeBlock in example.Examples)
+            {
+                if (string.IsNullOrWhiteSpace(codeBlock.Content))
+                    continue;
+
+                // Find identifiers followed by ( - these are function calls
+                foreach (Match match in FunctionCallPattern.Matches(codeBlock.Content))
+                {
+                    var funcName = match.Groups[1].Value;
+                    if (nameToNatives.TryGetValue(funcName, out var matchedNatives))
+                    {
+                        foreach (var native in matchedNatives)
+                            referencedNatives.Add(native);
+                    }
+                }
+            }
+
+            // Add example reference to each matched native
+            foreach (var native in referencedNatives)
+            {
+                if (!native.RelatedExamples.Exists(e => e.Equals(name, StringComparison.OrdinalIgnoreCase)))
+                {
+                    native.RelatedExamples.Add(name);
+                    linkedCount++;
+                }
+            }
+        }
+
+        return linkedCount;
+    }
+
+    private static readonly Regex FunctionCallPattern = new(@"\b(\w+)\s*\(", RegexOptions.Compiled);
 }
