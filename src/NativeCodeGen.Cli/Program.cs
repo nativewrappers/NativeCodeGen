@@ -101,7 +101,8 @@ class Program
             var packageName = context.ParseResult.GetValueForOption(packageNameOption);
             var packageVersion = context.ParseResult.GetValueForOption(packageVersionOption);
 
-            await Generate(input, output, format, namespaces, raw, singleFile, strict, exports, package_, packageName, packageVersion);
+            var exitCode = await Generate(input, output, format, namespaces, raw, singleFile, strict, exports, package_, packageName, packageVersion);
+            context.ExitCode = exitCode;
         });
 
         // Validate command
@@ -120,10 +121,14 @@ class Program
         validateCommand.AddOption(validateInputOption);
         validateCommand.AddOption(validateStrictOption);
 
-        validateCommand.SetHandler(async (input, strict) =>
+        validateCommand.SetHandler(async (context) =>
         {
-            await Validate(input, strict);
-        }, validateInputOption, validateStrictOption);
+            var input = context.ParseResult.GetValueForOption(validateInputOption)!;
+            var strict = context.ParseResult.GetValueForOption(validateStrictOption);
+
+            var exitCode = await Validate(input, strict);
+            context.ExitCode = exitCode;
+        });
 
         rootCommand.AddCommand(generateCommand);
         rootCommand.AddCommand(validateCommand);
@@ -131,7 +136,7 @@ class Program
         return await rootCommand.InvokeAsync(args);
     }
 
-    static async Task Generate(string input, string output, string format, string[]? namespaces, bool raw, bool singleFile, bool strict, bool exports, bool package_, string? packageName, string? packageVersion)
+    static async Task<int> Generate(string input, string output, string format, string[]? namespaces, bool raw, bool singleFile, bool strict, bool exports, bool package_, string? packageName, string? packageVersion)
     {
         Console.WriteLine($"Generating {format} output...");
         Console.WriteLine($"Input: {input}");
@@ -140,15 +145,13 @@ class Program
         if (singleFile && !raw)
         {
             Console.Error.WriteLine("Error: --single-file requires --raw");
-            Environment.ExitCode = 1;
-            return;
+            return 1;
         }
 
         if (exports && (!raw || !singleFile))
         {
             Console.Error.WriteLine("Error: --exports requires --raw --single-file");
-            Environment.ExitCode = 1;
-            return;
+            return 1;
         }
 
         if (package_)
@@ -156,8 +159,7 @@ class Program
             if (string.IsNullOrEmpty(packageName))
             {
                 Console.Error.WriteLine("Error: --package requires --package-name");
-                Environment.ExitCode = 1;
-                return;
+                return 1;
             }
 
             // If raw mode is specified with package, also enable single-file and exports
@@ -177,8 +179,7 @@ class Program
         {
             Console.WriteLine($"\nGeneration aborted due to {errors.Count} errors" +
                 (strict && warnings.Count > 0 ? $" and {warnings.Count} warnings (--strict)" : ""));
-            Environment.ExitCode = 1;
-            return;
+            return 1;
         }
 
         // Create exporter based on format
@@ -195,8 +196,7 @@ class Program
         if (exporter == null)
         {
             Console.Error.WriteLine($"Error: Unknown format '{format}'. Supported formats: typescript, lua, csharp, json, proto");
-            Environment.ExitCode = 1;
-            return;
+            return 1;
         }
 
         var options = new ExportOptions
@@ -218,9 +218,10 @@ class Program
         Console.WriteLine($"\nGenerated {db.Namespaces.Sum(n => n.Natives.Count)} natives in {db.Namespaces.Count} namespaces");
         Console.WriteLine($"Included {db.Enums.Count} enums and {db.Structs.Count} structs");
         Console.WriteLine($"Output written to: {output}");
+        return 0;
     }
 
-    static async Task Validate(string input, bool strict)
+    static async Task<int> Validate(string input, bool strict)
     {
         Console.WriteLine($"Validating MDX files in: {input}");
 
@@ -236,10 +237,7 @@ class Program
         Console.WriteLine($"Validated {totalFiles} files in {db.Namespaces.Count} namespaces");
         Console.WriteLine($"Found {errors.Count} errors, {warnings.Count} warnings");
 
-        if (errorCount > 0)
-        {
-            Environment.ExitCode = 1;
-        }
+        return errorCount > 0 ? 1 : 0;
     }
 
     static async Task<(NativeCodeGen.Core.Parsing.NativeDatabase db, List<ParseError> errors, List<ParseWarning> warnings)> ParseAllFiles(string inputDir)
