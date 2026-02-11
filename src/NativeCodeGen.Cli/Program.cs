@@ -301,7 +301,8 @@ class Program
             .Concat(Directory.GetFiles(inputDir, "*.md", SearchOption.AllDirectories))
             .Where(f => !f.Contains(Path.Combine("code", "enums")))           // Exclude enum files
             .Where(f => !f.Contains(Path.Combine("code", "shared-examples"))) // Exclude shared examples
-            .Where(f => !Path.GetFileName(f).Equals("README.md", StringComparison.OrdinalIgnoreCase)) // Exclude README
+            .Where(f => !(Path.GetExtension(f).Equals(".md", StringComparison.OrdinalIgnoreCase)
+                && Path.GetDirectoryName(Path.GetFullPath(f)) == resolvedInputDir)) // Exclude top-level .md files
             .Where(f => !Path.GetFullPath(f)[resolvedInputDir.Length..]       // Exclude dotfile directories
                 .Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
                 .Any(segment => segment.StartsWith('.')))
