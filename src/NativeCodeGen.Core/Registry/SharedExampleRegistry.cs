@@ -33,7 +33,8 @@ public class SharedExampleRegistry
         if (!Directory.Exists(directory))
             return;
 
-        foreach (var file in Directory.GetFiles(directory, "*.mdx"))
+        foreach (var file in Directory.GetFiles(directory, "*.mdx")
+                     .Concat(Directory.GetFiles(directory, "*.md")))
         {
             var name = Path.GetFileNameWithoutExtension(file);
             var content = File.ReadAllText(file);

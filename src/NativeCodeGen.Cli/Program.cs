@@ -296,9 +296,15 @@ class Program
         db.SharedExamples = sharedExampleRegistry.GetAllExamples();
 
         // Find all MDX files (natives are in namespace directories)
+        var resolvedInputDir = Path.GetFullPath(inputDir);
         var mdxFiles = Directory.GetFiles(inputDir, "*.mdx", SearchOption.AllDirectories)
+            .Concat(Directory.GetFiles(inputDir, "*.md", SearchOption.AllDirectories))
             .Where(f => !f.Contains(Path.Combine("code", "enums")))           // Exclude enum files
             .Where(f => !f.Contains(Path.Combine("code", "shared-examples"))) // Exclude shared examples
+            .Where(f => !Path.GetFileName(f).Equals("README.md", StringComparison.OrdinalIgnoreCase)) // Exclude README
+            .Where(f => !Path.GetFullPath(f)[resolvedInputDir.Length..]       // Exclude dotfile directories
+                .Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+                .Any(segment => segment.StartsWith('.')))
             .ToArray();
 
         Console.WriteLine($"Found {mdxFiles.Length} MDX files to parse...");

@@ -14,6 +14,7 @@ public class EnumRegistry
             return;
 
         var files = Directory.GetFiles(enumsDirectory, "*.mdx")
+            .Concat(Directory.GetFiles(enumsDirectory, "*.md"))
             .Concat(Directory.GetFiles(enumsDirectory, "*.c"))
             .Concat(Directory.GetFiles(enumsDirectory, "*.h"));
 

@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using Markdig;
 using Markdig.Syntax;
 using Markdig.Syntax.Inlines;
@@ -125,7 +126,7 @@ public class MdxParser
                         }
 
                         // Parse signature from second line
-                        var signatureLine = codeLines[1].Trim();
+                        var signatureLine = StripCsAnnotations(codeLines[1].Trim());
                         try
                         {
                             var lexer = new SignatureLexer(signatureLine);
@@ -448,6 +449,19 @@ public class MdxParser
             }
         }
         return string.Join(" ", parts);
+    }
+
+    private static readonly Regex CsTypePattern = new(@"\bcs_type\([^)]*\)\s*", RegexOptions.Compiled);
+
+    /// <summary>
+    /// Strips cs_type(...) and cs_split annotations from signature lines.
+    /// These are C# type hints used in some native databases that aren't part of the signature grammar.
+    /// </summary>
+    private static string StripCsAnnotations(string signature)
+    {
+        signature = CsTypePattern.Replace(signature, "");
+        signature = signature.Replace("cs_split ", "");
+        return signature;
     }
 
     private static string GetInlineText(Inline inline) => inline switch
