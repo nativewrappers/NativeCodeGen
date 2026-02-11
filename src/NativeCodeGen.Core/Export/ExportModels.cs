@@ -12,6 +12,7 @@ namespace NativeCodeGen.Core.Export;
 /// </summary>
 
 [ProtoContract]
+[CompatibilityLevel(CompatibilityLevel.Level240)]
 public partial class ExportDatabase
 {
     [ProtoMember(1)]
@@ -31,6 +32,7 @@ public partial class ExportDatabase
 }
 
 [ProtoContract]
+[CompatibilityLevel(CompatibilityLevel.Level240)]
 public partial class ExportNamespace
 {
     [ProtoMember(1)]
@@ -41,6 +43,7 @@ public partial class ExportNamespace
 }
 
 [ProtoContract]
+[CompatibilityLevel(CompatibilityLevel.Level240)]
 public partial class ExportNative
 {
     [ProtoMember(1)]
@@ -70,6 +73,10 @@ public partial class ExportNative
     public List<string>? Aliases { get; set; }
 
 
+    [ProtoMember(9)]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<string>? UsedEnums { get; set; }
+
     [ProtoMember(10)]
     [JsonPropertyName("apiset")]
     public string ApiSet { get; set; } = "client";
@@ -80,6 +87,7 @@ public partial class ExportNative
 }
 
 [ProtoContract]
+[CompatibilityLevel(CompatibilityLevel.Level240)]
 public partial class ExportParameter
 {
     [ProtoMember(1)]
@@ -101,6 +109,7 @@ public partial class ExportParameter
 }
 
 [ProtoContract]
+[CompatibilityLevel(CompatibilityLevel.Level240)]
 public partial class ExportEnum
 {
     [ProtoMember(1)]
@@ -119,6 +128,7 @@ public partial class ExportEnum
 }
 
 [ProtoContract]
+[CompatibilityLevel(CompatibilityLevel.Level240)]
 public partial class ExportEnumMember
 {
     [ProtoMember(1)]
@@ -129,6 +139,7 @@ public partial class ExportEnumMember
 }
 
 [ProtoContract]
+[CompatibilityLevel(CompatibilityLevel.Level240)]
 public partial class ExportStruct
 {
     [ProtoMember(1)]
@@ -147,6 +158,7 @@ public partial class ExportStruct
 }
 
 [ProtoContract]
+[CompatibilityLevel(CompatibilityLevel.Level240)]
 public partial class ExportStructField
 {
     [ProtoMember(1)]
@@ -177,6 +189,7 @@ public partial class ExportStructField
 }
 
 [ProtoContract]
+[CompatibilityLevel(CompatibilityLevel.Level240)]
 public partial class ExportSharedExample
 {
     [ProtoMember(1)]
@@ -191,6 +204,7 @@ public partial class ExportSharedExample
 }
 
 [ProtoContract]
+[CompatibilityLevel(CompatibilityLevel.Level240)]
 public partial class ExportSharedExampleCode
 {
     [ProtoMember(1)]

@@ -97,6 +97,7 @@ public static class DatabaseConverter
             ReturnType = native.ReturnType.ToString(),
             ReturnDescription = native.ReturnDescription,
             Aliases = native.Aliases.Count > 0 ? native.Aliases : null,
+            UsedEnums = native.UsedEnums.Count > 0 ? native.UsedEnums : null,
             RelatedExamples = native.RelatedExamples.Count > 0 ? native.RelatedExamples : null,
             ApiSet = native.ApiSet,
             Parameters = native.Parameters.Select(ConvertParameter).ToList()

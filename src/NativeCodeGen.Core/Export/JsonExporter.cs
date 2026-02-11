@@ -44,6 +44,7 @@ public class JsonOutput
 /// Type information for JSON/Protobuf export.
 /// </summary>
 [ProtoContract]
+[CompatibilityLevel(CompatibilityLevel.Level240)]
 public class ExportTypeInfo
 {
     [ProtoMember(1)]
@@ -78,6 +79,7 @@ public enum ExportTypeCategory
 /// Type entry for protobuf serialization (since protobuf doesn't support dictionaries directly).
 /// </summary>
 [ProtoContract]
+[CompatibilityLevel(CompatibilityLevel.Level240)]
 public class ExportTypeEntry
 {
     [ProtoMember(1)]
