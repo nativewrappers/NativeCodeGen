@@ -55,7 +55,7 @@ public partial class MdxComponentParser
 
     /// <summary>
     /// Normalizes description text by cleaning up whitespace.
-    /// Preserves [enum:], [struct:] markers for downstream processing.
+    /// Preserves [enum:], [struct:], [native:] markers for downstream processing.
     /// </summary>
     public string NormalizeDescription(string content)
     {
@@ -63,8 +63,7 @@ public partial class MdxComponentParser
             return content;
 
         // Remove markers that don't make sense in final output
-        var result = NativeAttributeRegex().Replace(content, "");
-        result = ExampleAttributeRegex().Replace(result, "");
+        var result = ExampleAttributeRegex().Replace(content, "");
 
         // Clean up double spaces
         result = Regex.Replace(result, @"\s{2,}", " ");
